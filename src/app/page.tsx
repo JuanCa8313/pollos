@@ -8,6 +8,7 @@ import { ClientesTab } from '../components/ClientesTab';
 import { BottomNav, type TabType } from '../components/BottomNav';
 import { DocumentacionModal } from '../components/DocumentacionModal';
 import LoginScreen from '../components/LoginScreen';
+import InstallPwaBanner from '../components/InstallPwaBanner';
 import { AuthProvider, useAuth, type AppRole } from '../contexts/AuthContext';
 import { seedInitialPollosData } from '../lib/db';
 import { Bird, Wifi, WifiOff, BookOpen, Shield, ChevronDown, LogOut } from 'lucide-react';
@@ -55,11 +56,17 @@ function PollosAppContent() {
   }
 
   if (!user) {
-    return <LoginScreen isOnline={isOnline} />;
+    return (
+      <div className="min-h-screen bg-slate-900 flex flex-col">
+        <InstallPwaBanner />
+        <LoginScreen isOnline={isOnline} />
+      </div>
+    );
   }
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col justify-between">
+      <InstallPwaBanner />
       {/* Barra Superior / Header */}
       <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200/80 px-4 py-2.5">
         <div className="max-w-lg mx-auto flex items-center justify-between">
