@@ -12,6 +12,8 @@ export interface AuthUser {
   fincaNombre?: string;
 }
 
+import { getSupabaseClient } from '../lib/supabase';
+
 interface AuthContextType {
   user: AuthUser | null;
   isLoading: boolean;
@@ -19,6 +21,7 @@ interface AuthContextType {
   isOperador: boolean;
   isRepartidor: boolean;
   loginRapido: (rol: AppRole) => void;
+  loginWithGoogle: () => Promise<void>;
   logout: () => void;
 }
 
@@ -71,7 +74,66 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.setItem('pollos_auth_user', JSON.stringify(newUser));
   };
 
-  const logout = () => {
+  useEffect(() => {
+    const supabase = getSupabaseClient();
+    if (supabase) {
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        if (session?.user) {
+          const email = (session.user.email || '').toLowerCase().trim();
+          const name = session.user.user_metadata?.full_name || session.user.email?.split('@')[0] || 'Usuario';
+          const isOwner = email.includes('juanca') || email.includes('alex') || email === 'admin@granja.com';
+          const newUser: AuthUser = {
+            id: session.user.id,
+            email,
+            name,
+            roles: isOwner ? ['administrador'] : ['operador_galpon'],
+            fincaNombre: 'Finca 2.200 msnm',
+          };
+          setUser(newUser);
+          localStorage.setItem('pollos_auth_user', JSON.stringify(newUser));
+        }
+      });
+
+      const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+        if (session?.user) {
+          const email = (session.user.email || '').toLowerCase().trim();
+          const name = session.user.user_metadata?.full_name || session.user.email?.split('@')[0] || 'Usuario';
+          const isOwner = email.includes('juanca') || email.includes('alex') || email === 'admin@granja.com';
+          const newUser: AuthUser = {
+            id: session.user.id,
+            email,
+            name,
+            roles: isOwner ? ['administrador'] : ['operador_galpon'],
+            fincaNombre: 'Finca 2.200 msnm',
+          };
+          setUser(newUser);
+          localStorage.setItem('pollos_auth_user', JSON.stringify(newUser));
+        }
+      });
+
+      return () => {
+        subscription.unsubscribe();
+      };
+    }
+  }, []);
+
+  const loginWithGoogle = async () => {
+    const supabase = getSupabaseClient();
+    if (!supabase) return;
+    const redirectUrl = typeof window !== 'undefined' ? window.location.origin : undefined;
+    await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: redirectUrl,
+      },
+    });
+  };
+
+  const logout = async () => {
+    const supabase = getSupabaseClient();
+    if (supabase) {
+      await supabase.auth.signOut();
+    }
     setUser(null);
     localStorage.removeItem('pollos_auth_user');
   };
@@ -89,6 +151,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isOperador,
         isRepartidor,
         loginRapido,
+        loginWithGoogle,
         logout,
       }}
     >
