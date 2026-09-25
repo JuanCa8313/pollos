@@ -14,6 +14,13 @@ export interface AuthUser {
 
 import { getSupabaseClient } from '../lib/supabase';
 
+export const AUTHORIZED_EMAILS = [
+  'juanca.arcilav@gmail.com',
+  'alex@alexzapata.com',
+  'admin@granja.com',
+  'admin@finca.com',
+];
+
 interface AuthContextType {
   user: AuthUser | null;
   isLoading: boolean;
@@ -32,7 +39,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
   useEffect(() => {
-    // Cargar sesión guardada en localStorage
+    // Cargar sesión guardada en localStorage si existe
     const savedUser = localStorage.getItem('pollos_auth_user');
     if (savedUser) {
       try {
@@ -40,17 +47,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } catch (e) {
         console.error('Error parseando usuario guardado', e);
       }
-    } else {
-      // Usuario predeterminado Administrador para acceso inicial
-      const defaultAdmin: AuthUser = {
-        id: 'usr-admin',
-        email: 'admin@granja.com',
-        name: 'Administrador Finca',
-        roles: ['administrador'],
-        fincaNombre: 'Finca 2.200 msnm',
-      };
-      setUser(defaultAdmin);
-      localStorage.setItem('pollos_auth_user', JSON.stringify(defaultAdmin));
     }
     setIsLoading(false);
   }, []);
@@ -81,7 +77,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (session?.user) {
           const email = (session.user.email || '').toLowerCase().trim();
           const name = session.user.user_metadata?.full_name || session.user.email?.split('@')[0] || 'Usuario';
-          const isOwner = email.includes('juanca') || email.includes('alex') || email === 'admin@granja.com';
+          const isOwner = AUTHORIZED_EMAILS.includes(email) || email.includes('juanca') || email.includes('alex');
           const newUser: AuthUser = {
             id: session.user.id,
             email,
@@ -94,11 +90,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       });
 
-      const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-        if (session?.user) {
+      const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+        if (event === 'SIGNED_OUT') {
+          setUser(null);
+          localStorage.removeItem('pollos_auth_user');
+        } else if (session?.user) {
           const email = (session.user.email || '').toLowerCase().trim();
           const name = session.user.user_metadata?.full_name || session.user.email?.split('@')[0] || 'Usuario';
-          const isOwner = email.includes('juanca') || email.includes('alex') || email === 'admin@granja.com';
+          const isOwner = AUTHORIZED_EMAILS.includes(email) || email.includes('juanca') || email.includes('alex');
           const newUser: AuthUser = {
             id: session.user.id,
             email,

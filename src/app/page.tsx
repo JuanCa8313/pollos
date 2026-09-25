@@ -7,9 +7,10 @@ import { LotesTab } from '../components/LotesTab';
 import { ClientesTab } from '../components/ClientesTab';
 import { BottomNav, type TabType } from '../components/BottomNav';
 import { DocumentacionModal } from '../components/DocumentacionModal';
+import LoginScreen from '../components/LoginScreen';
 import { AuthProvider, useAuth, type AppRole } from '../contexts/AuthContext';
 import { seedInitialPollosData } from '../lib/db';
-import { Bird, Wifi, WifiOff, BookOpen, Shield, ChevronDown } from 'lucide-react';
+import { Bird, Wifi, WifiOff, BookOpen, Shield, ChevronDown, LogOut } from 'lucide-react';
 
 function PollosAppContent() {
   const [activeTab, setActiveTab] = useState<TabType>('botonera');
@@ -18,9 +19,14 @@ function PollosAppContent() {
   const [showDocModal, setShowDocModal] = useState<boolean>(false);
   const [showRoleSelector, setShowRoleSelector] = useState<boolean>(false);
 
-  const { user, isAdmin, isOperador, isRepartidor, loginRapido } = useAuth();
+  const { user, isAdmin, isOperador, isRepartidor, loginRapido, logout, isLoading } = useAuth();
 
   useEffect(() => {
+    // Limpieza de hash OAuth en URL (evita loops y tokens visibles)
+    if (typeof window !== 'undefined' && window.location.hash.includes('access_token')) {
+      window.history.replaceState(null, '', window.location.pathname + window.location.search);
+    }
+
     setIsOnline(navigator.onLine);
     const handleOnline = () => setIsOnline(true);
     const handleOffline = () => setIsOnline(false);
@@ -38,7 +44,7 @@ function PollosAppContent() {
     };
   }, []);
 
-  if (!isReady) {
+  if (isLoading || !isReady) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center">
         <div className="w-12 h-12 border-4 border-orange-500 border-t-transparent rounded-full animate-spin mb-4" />
@@ -46,6 +52,10 @@ function PollosAppContent() {
         <span className="text-xs text-slate-400">Modo Local-First activo</span>
       </div>
     );
+  }
+
+  if (!user) {
+    return <LoginScreen isOnline={isOnline} />;
   }
 
   return (
@@ -90,7 +100,11 @@ function PollosAppContent() {
               </button>
 
               {showRoleSelector && (
-                <div className="absolute right-0 mt-1.5 w-44 bg-white border border-slate-200 rounded-2xl shadow-xl p-1 z-50 animate-fade-in text-xs">
+                <div className="absolute right-0 mt-1.5 w-52 bg-white border border-slate-200 rounded-2xl shadow-xl p-1.5 z-50 animate-fade-in text-xs">
+                  <div className="px-2.5 py-1.5 border-b border-slate-100 mb-1">
+                    <p className="font-bold text-slate-800 text-xs truncate">{user?.name}</p>
+                    <p className="text-[10px] text-slate-400 truncate">{user?.email}</p>
+                  </div>
                   <div className="px-2 py-1 text-[10px] font-bold uppercase text-slate-400">
                     Cambiar Perfil (RBAC)
                   </div>
@@ -111,6 +125,19 @@ function PollosAppContent() {
                       {user?.roles.includes(r) && <span className="text-[10px]">✓</span>}
                     </button>
                   ))}
+
+                  <div className="pt-1.5 mt-1 border-t border-slate-100">
+                    <button
+                      onClick={() => {
+                        setShowRoleSelector(false);
+                        logout();
+                      }}
+                      className="w-full text-left px-2.5 py-1.5 rounded-xl font-semibold text-rose-600 hover:bg-rose-50 flex items-center gap-1.5 text-xs transition"
+                    >
+                      <LogOut className="w-3.5 h-3.5" />
+                      <span>Cerrar sesión</span>
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
