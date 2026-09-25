@@ -2,13 +2,16 @@
 
 import React, { useState, useEffect } from 'react';
 import { dbPollos, emitPollosUpdated, type LotePollo, type ClienteLocal } from '../lib/db';
-import { ShoppingBag, Wheat, Bug, Skull, Receipt, HandCoins, Check, X } from 'lucide-react';
+import { ShoppingBag, Wheat, Bug, Skull, Receipt, HandCoins, Check, X, MessageCircle, Trash2 } from 'lucide-react';
 import { formatCOP } from '../lib/utils';
+import type { VentaPollo } from '../lib/db';
 
 export function BotoneraTab() {
   const [lotes, setLotes] = useState<LotePollo[]>([]);
   const [clientes, setClientes] = useState<ClienteLocal[]>([]);
   const [selectedLoteId, setSelectedLoteId] = useState<string>('');
+  const [ventasRecientes, setVentasRecientes] = useState<VentaPollo[]>([]);
+  const [ultimaVenta, setUltimaVenta] = useState<VentaPollo | null>(null);
   
   // Modales
   const [modalType, setModalType] = useState<
@@ -19,8 +22,9 @@ export function BotoneraTab() {
   // Estados de formularios
   // Venta
   const [modalidadVenta, setModalidadVenta] = useState<'en_pie' | 'en_canal'>('en_canal');
+  const [unidadPeso, setUnidadPeso] = useState<'kg' | 'lb'>('kg');
   const [cantidadAvesVenta, setCantidadAvesVenta] = useState<number>(1);
-  const [pesoTotalKg, setPesoTotalKg] = useState<number>(2.7);
+  const [pesoEntrada, setPesoEntrada] = useState<number>(2.7);
   const [precioPorKg, setPrecioPorKg] = useState<number>(13500); // Promedio pueblo canal COP/kg
   const [metodoPagoVenta, setMetodoPagoVenta] = useState<'efectivo' | 'transferencia' | 'fiado'>('efectivo');
   const [clienteIdVenta, setClienteIdVenta] = useState<string>('');
@@ -61,6 +65,8 @@ export function BotoneraTab() {
       setClienteIdVenta(listClientes[0].id);
       setClienteIdAbono(listClientes[0].id);
     }
+    const listVentas = await dbPollos.ventas.reverse().limit(5).toArray();
+    setVentasRecientes(listVentas);
   };
 
   useEffect(() => {
@@ -72,6 +78,11 @@ export function BotoneraTab() {
     emitPollosUpdated();
     setTimeout(() => setMensajeExito(null), 3000);
   };
+
+  // Convertir a Kilos reales para base de datos y zootecnia
+  // Si unidad es 'lb', 1 lb tradicional = 0.5 kg
+  const pesoKgCalculado = unidadPeso === 'lb' ? Number((pesoEntrada * 0.5).toFixed(2)) : Number(pesoEntrada);
+  const totalCalculadoVenta = Math.round(pesoKgCalculado * precioPorKg);
 
   // 1. Guardar Venta
   const handleGuardarVenta = async () => {
@@ -95,22 +106,23 @@ export function BotoneraTab() {
       targetClienteNombre = nuevoClienteNombre.trim();
     }
 
-    const totalCalculado = Math.round(pesoTotalKg * precioPorKg);
-
-    await dbPollos.ventas.add({
+    const nuevaVenta: VentaPollo = {
       id: 'ven-' + Date.now(),
       loteId: selectedLoteId,
       fecha: new Date().toISOString().split('T')[0],
       modalidad: modalidadVenta,
       cantidadAves: Number(cantidadAvesVenta),
-      pesoTotalKg: Number(pesoTotalKg),
+      pesoTotalKg: pesoKgCalculado,
       precioUnitario: Number(precioPorKg),
-      totalCop: totalCalculado,
+      totalCop: totalCalculadoVenta,
       metodoPago: metodoPagoVenta,
       clienteId: targetClienteId,
       nombreCliente: targetClienteNombre,
       createdAt: new Date().toISOString(),
-    });
+    };
+
+    await dbPollos.ventas.add(nuevaVenta);
+    setUltimaVenta(nuevaVenta);
 
     // Actualizar cantidad actual de aves del lote
     const nuevasAves = Math.max(0, lote.cantidadActual - Number(cantidadAvesVenta));
@@ -121,14 +133,59 @@ export function BotoneraTab() {
       const cliente = await dbPollos.clientes.get(targetClienteId);
       if (cliente) {
         await dbPollos.clientes.update(targetClienteId, {
-          saldoPendiente: (cliente.saldoPendiente || 0) + totalCalculado,
+          saldoPendiente: (cliente.saldoPendiente || 0) + totalCalculadoVenta,
         });
       }
     }
 
     await cargarDatos();
     setModalType(null);
-    notificar(`¡Venta registrada! ${cantidadAvesVenta} pollos por ${formatCOP(totalCalculado)}`);
+    notificar(`¡Venta registrada! ${cantidadAvesVenta} pollos (${pesoKgCalculado} kg) por ${formatCOP(totalCalculadoVenta)}`);
+  };
+
+  const handleEliminarVenta = async (venta: VentaPollo) => {
+    if (!confirm(`¿Deseas anular la venta de ${venta.cantidadAves} pollos a ${venta.nombreCliente}? Se devolverán las aves al lote.`)) return;
+
+    await dbPollos.ventas.delete(venta.id);
+
+    // Devolver aves al lote
+    const lote = await dbPollos.lotes.get(venta.loteId);
+    if (lote) {
+      await dbPollos.lotes.update(lote.id, {
+        cantidadActual: lote.cantidadActual + venta.cantidadAves,
+      });
+    }
+
+    // Si fue fiado, restar de saldo
+    if (venta.metodoPago === 'fiado' && venta.clienteId) {
+      const cliente = await dbPollos.clientes.get(venta.clienteId);
+      if (cliente) {
+        await dbPollos.clientes.update(venta.clienteId, {
+          saldoPendiente: Math.max(0, (cliente.saldoPendiente || 0) - venta.totalCop),
+        });
+      }
+    }
+
+    if (ultimaVenta?.id === venta.id) {
+      setUltimaVenta(null);
+    }
+
+    await cargarDatos();
+    notificar('Venta anulada y aves reintegradas al lote.');
+  };
+
+  const compartirReciboWhatsApp = (venta: VentaPollo) => {
+    const texto = `🍗 *Comprobante de Entrega - Granja SomosGranja*\n\n` +
+      `👤 Cliente: *${venta.nombreCliente || 'Cliente'}*\n` +
+      `📅 Fecha: ${venta.fecha}\n` +
+      `🐔 Cantidad: ${venta.cantidadAves} pollo(s) (${venta.modalidad === 'en_canal' ? 'En Canal' : 'En Pie'})\n` +
+      `⚖️ Peso Total: ${venta.pesoTotalKg} kg (${(venta.pesoTotalKg * 2).toFixed(1)} lbs)\n` +
+      `💰 Total: *${formatCOP(venta.totalCop)}*\n` +
+      `💳 Pago: *${venta.metodoPago.toUpperCase()}*\n\n` +
+      `¡Muchas gracias por apoyar nuestra producción local campesina a 2.200 msnm! 🌱`;
+
+    const url = `https://wa.me/?text=${encodeURIComponent(texto)}`;
+    window.open(url, '_blank');
   };
 
   // 2. Guardar Alimento Purina
@@ -339,6 +396,73 @@ export function BotoneraTab() {
         </button>
       </div>
 
+      {/* Recibo Rápido de Última Venta por WhatsApp */}
+      {ultimaVenta && (
+        <div className="bg-emerald-50 border border-emerald-300 rounded-2xl p-3.5 mb-5 shadow-sm flex items-center justify-between">
+          <div>
+            <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-800 block">
+              ✅ Venta Registrada a {ultimaVenta.nombreCliente}
+            </span>
+            <span className="text-sm font-black text-slate-800 block">
+              {ultimaVenta.cantidadAves} pollos ({ultimaVenta.pesoTotalKg} kg) • {formatCOP(ultimaVenta.totalCop)}
+            </span>
+            <span className="text-[10px] text-slate-500 capitalize">Pago: {ultimaVenta.metodoPago}</span>
+          </div>
+
+          <button
+            onClick={() => compartirReciboWhatsApp(ultimaVenta)}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-3 rounded-xl shadow-md text-xs flex items-center gap-1.5 active:scale-95 transition-all"
+          >
+            <MessageCircle className="w-4 h-4 fill-white" />
+            <span>Recibo WA</span>
+          </button>
+        </div>
+      )}
+
+      {/* Historial de Ventas Recientes */}
+      {ventasRecientes.length > 0 && (
+        <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm mb-6">
+          <div className="flex justify-between items-center mb-2.5">
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
+              Ventas Recientes
+            </span>
+            <span className="text-[10px] text-slate-400">Últimos movimientos</span>
+          </div>
+
+          <div className="space-y-2">
+            {ventasRecientes.map((v) => (
+              <div
+                key={v.id}
+                className="flex items-center justify-between p-2 rounded-xl bg-slate-50 border border-slate-100 text-xs"
+              >
+                <div>
+                  <span className="font-bold text-slate-800 block">{v.nombreCliente}</span>
+                  <span className="text-[11px] text-slate-500">
+                    {v.cantidadAves} ave(s) • {v.pesoTotalKg} kg • <strong className="text-slate-700">{formatCOP(v.totalCop)}</strong>
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={() => compartirReciboWhatsApp(v)}
+                    className="p-1.5 bg-emerald-100 text-emerald-700 rounded-lg hover:bg-emerald-200 transition-all"
+                    title="Enviar recibo por WhatsApp"
+                  >
+                    <MessageCircle className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    onClick={() => handleEliminarVenta(v)}
+                    className="p-1.5 bg-rose-50 text-rose-600 rounded-lg hover:bg-rose-100 transition-all"
+                    title="Anular venta y devolver aves"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* MODAL: VENTA DE POLLOS */}
       {modalType === 'venta' && (
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center p-3">
@@ -389,7 +513,7 @@ export function BotoneraTab() {
                 </div>
               </div>
 
-              {/* Cantidad de Aves y Peso Total */}
+              {/* Cantidad de Aves y Unidad de Peso */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs font-bold text-slate-600 block mb-1">Nº Pollos</label>
@@ -400,27 +524,74 @@ export function BotoneraTab() {
                     onChange={(e) => {
                       const cant = Number(e.target.value);
                       setCantidadAvesVenta(cant);
-                      setPesoTotalKg(Number((cant * 2.7).toFixed(1)));
+                      const baseKg = Number((cant * 2.7).toFixed(1));
+                      setPesoEntrada(unidadPeso === 'lb' ? Number((baseKg * 2).toFixed(1)) : baseKg);
                     }}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 font-bold text-slate-800"
                   />
                 </div>
                 <div>
-                  <label className="text-xs font-bold text-slate-600 block mb-1">Peso Total (kg)</label>
+                  <label className="text-xs font-bold text-slate-600 block mb-1">Unidad Báscula</label>
+                  <div className="grid grid-cols-2 gap-1 bg-slate-100 p-1 rounded-xl">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (unidadPeso === 'lb') {
+                          setPesoEntrada(Number((pesoEntrada * 0.5).toFixed(1)));
+                        }
+                        setUnidadPeso('kg');
+                      }}
+                      className={`py-1.5 rounded-lg text-xs font-bold transition-all ${
+                        unidadPeso === 'kg' ? 'bg-white text-orange-600 shadow-sm' : 'text-slate-600'
+                      }`}
+                    >
+                      Kilos (kg)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (unidadPeso === 'kg') {
+                          setPesoEntrada(Number((pesoEntrada * 2).toFixed(1)));
+                        }
+                        setUnidadPeso('lb');
+                      }}
+                      className={`py-1.5 rounded-lg text-xs font-bold transition-all ${
+                        unidadPeso === 'lb' ? 'bg-white text-orange-600 shadow-sm' : 'text-slate-600'
+                      }`}
+                    >
+                      Libras (lb)
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Peso ingresado */}
+              <div>
+                <label className="text-xs font-bold text-slate-600 block mb-1">
+                  Peso Total Marcado en Báscula ({unidadPeso.toUpperCase()})
+                </label>
+                <div className="relative">
                   <input
                     type="number"
                     step="0.1"
                     min="0.5"
-                    value={pesoTotalKg}
-                    onChange={(e) => setPesoTotalKg(Number(e.target.value))}
+                    value={pesoEntrada}
+                    onChange={(e) => setPesoEntrada(Number(e.target.value))}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 font-bold text-slate-800"
                   />
+                  {unidadPeso === 'lb' && (
+                    <span className="absolute right-3 top-2 text-xs font-semibold text-slate-400">
+                      = {(pesoEntrada * 0.5).toFixed(2)} kg
+                    </span>
+                  )}
                 </div>
               </div>
 
               {/* Precio por Kilo */}
               <div>
-                <label className="text-xs font-bold text-slate-600 block mb-1">Precio por Kilo (COP)</label>
+                <label className="text-xs font-bold text-slate-600 block mb-1">
+                  Precio por Kilo (COP) {unidadPeso === 'lb' ? `(Aprox ${formatCOP(Math.round(precioPorKg * 0.5))}/lb)` : ''}
+                </label>
                 <input
                   type="number"
                   step="500"
@@ -434,7 +605,7 @@ export function BotoneraTab() {
               <div className="p-3 bg-amber-50 rounded-xl border border-amber-200/80 flex justify-between items-center">
                 <span className="text-xs font-semibold text-amber-900">Total a Cobrar:</span>
                 <span className="font-black text-lg text-amber-700">
-                  {formatCOP(Math.round(pesoTotalKg * precioPorKg))}
+                  {formatCOP(totalCalculadoVenta)}
                 </span>
               </div>
 
