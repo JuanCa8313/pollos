@@ -2,9 +2,13 @@
 
 import React, { useState, useEffect } from 'react';
 import { dbPollos, emitPollosUpdated, type LotePollo, type ClienteLocal } from '../lib/db';
-import { ShoppingBag, Wheat, Bug, Skull, Receipt, HandCoins, Check, X, MessageCircle, Trash2 } from 'lucide-react';
+import { ShoppingBag, Wheat, Bug, Skull, Receipt, HandCoins, Check, X, MessageCircle, Trash2, Sparkles, Calculator } from 'lucide-react';
 import { formatCOP } from '../lib/utils';
-import type { VentaPollo } from '../lib/db';
+import type { VentaPollo, RegistroAlimentoPollo, GastoPollo } from '../lib/db';
+import {
+  calcularPreciosSugeridosPollos,
+  type ModoCosteoPollos,
+} from '../lib/preciosSugeridosPollos';
 
 export function BotoneraTab() {
   const [lotes, setLotes] = useState<LotePollo[]>([]);
@@ -53,13 +57,27 @@ export function BotoneraTab() {
   const [montoAbonoCop, setMontoAbonoCop] = useState<number>(50000);
   const [metodoPagoAbono, setMetodoPagoAbono] = useState<'efectivo' | 'transferencia'>('efectivo');
 
+  // Estados para sugerencia de precios y márgenes
+  const [alimentos, setAlimentos] = useState<RegistroAlimentoPollo[]>([]);
+  const [gastos, setGastos] = useState<GastoPollo[]>([]);
+  const [todasVentas, setTodasVentas] = useState<VentaPollo[]>([]);
+  const [modoCosteoVenta, setModoCosteoVenta] = useState<ModoCosteoPollos>(() => {
+    try {
+      const g = localStorage.getItem('pollos_modo_costeo');
+      if (g === 'pl_real' || g === 'facturas_recientes' || g === 'teorico_completo') return g;
+    } catch {}
+    return 'pl_real';
+  });
+
   const cargarDatos = async () => {
-    const listLotes = await dbPollos.lotes.where('activo').equals(1).toArray();
+    const todosLotes = await dbPollos.lotes.toArray();
+    const listLotes = todosLotes.filter((l) => Boolean(l.activo));
     setLotes(listLotes);
     if (listLotes.length > 0 && !selectedLoteId) {
       setSelectedLoteId(listLotes[0].id);
     }
-    const listClientes = await dbPollos.clientes.where('activo').equals(1).toArray();
+    const todosClientes = await dbPollos.clientes.toArray();
+    const listClientes = todosClientes.filter((c) => Boolean(c.activo));
     setClientes(listClientes);
     if (listClientes.length > 0 && !clienteIdVenta) {
       setClienteIdVenta(listClientes[0].id);
@@ -67,6 +85,13 @@ export function BotoneraTab() {
     }
     const listVentas = await dbPollos.ventas.reverse().limit(5).toArray();
     setVentasRecientes(listVentas);
+
+    const listAlimentos = await dbPollos.alimento.toArray();
+    const listGastos = await dbPollos.gastos.toArray();
+    const listTodasVentas = await dbPollos.ventas.toArray();
+    setAlimentos(listAlimentos);
+    setGastos(listGastos);
+    setTodasVentas(listTodasVentas);
   };
 
   useEffect(() => {
@@ -285,6 +310,25 @@ export function BotoneraTab() {
 
   const loteActivo = lotes.find((l) => l.id === selectedLoteId);
 
+  const alimentosLoteActivo = alimentos.filter((a) => a.loteId === selectedLoteId);
+  const gastosLoteActivo = gastos.filter((g) => !g.loteId || g.loteId === selectedLoteId);
+  const ventasLoteActivo = todasVentas.filter((v) => v.loteId === selectedLoteId);
+
+  const analisisVenta = calcularPreciosSugeridosPollos({
+    lote: loteActivo,
+    ventasLote: ventasLoteActivo,
+    alimentosLote: alimentosLoteActivo,
+    gastosLote: gastosLoteActivo,
+    margenObjetivoPct: 25,
+    modoCosteo: modoCosteoVenta,
+  });
+
+  const costoUnitarioActivo = modalidadVenta === 'en_canal'
+    ? analisisVenta.canal.costoUnitarioKg
+    : analisisVenta.enPie.costoUnitarioKg;
+  const gananciaCalculada = precioPorKg - costoUnitarioActivo;
+  const margenCalculado = precioPorKg > 0 ? Number(((gananciaCalculada / precioPorKg) * 100).toFixed(1)) : 0;
+
   return (
     <div className="pb-24 pt-4 px-4 max-w-lg mx-auto">
       {/* Alerta flotante */}
@@ -486,7 +530,7 @@ export function BotoneraTab() {
                     type="button"
                     onClick={() => {
                       setModalidadVenta('en_canal');
-                      setPrecioPorKg(13500);
+                      setPrecioPorKg(analisisVenta.canal.precioSugeridoKg || 13500);
                     }}
                     className={`py-2 px-3 rounded-xl font-bold text-xs transition-all ${
                       modalidadVenta === 'en_canal'
@@ -500,7 +544,7 @@ export function BotoneraTab() {
                     type="button"
                     onClick={() => {
                       setModalidadVenta('en_pie');
-                      setPrecioPorKg(9500);
+                      setPrecioPorKg(analisisVenta.enPie.precioSugeridoKg || 9500);
                     }}
                     className={`py-2 px-3 rounded-xl font-bold text-xs transition-all ${
                       modalidadVenta === 'en_pie'
@@ -587,6 +631,66 @@ export function BotoneraTab() {
                 </div>
               </div>
 
+              {/* SUGERENCIAS DE PRECIOS Y MÁRGENES DE 1 TOQUE */}
+              <div className="bg-amber-50/70 p-2.5 rounded-2xl border border-amber-200/80">
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-[10px] font-black uppercase text-amber-900 tracking-wider flex items-center gap-1">
+                    <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+                    Sugerir según Costos ({modalidadVenta === 'en_canal' ? 'Canal' : 'En Pie'})
+                  </span>
+                  <select
+                    value={modoCosteoVenta}
+                    onChange={(e) => {
+                      const val = e.target.value as ModoCosteoPollos;
+                      setModoCosteoVenta(val);
+                      try { localStorage.setItem('pollos_modo_costeo', val); } catch {}
+                    }}
+                    className="bg-white border border-amber-300 rounded-lg px-1.5 py-0.5 text-[10px] font-bold text-amber-950"
+                  >
+                    <option value="pl_real">Real P&L</option>
+                    <option value="facturas_recientes">Facturas</option>
+                    <option value="teorico_completo">Teórico</option>
+                  </select>
+                </div>
+
+                <div className="grid grid-cols-4 gap-1.5">
+                  {[
+                    { pct: 15, label: 'May. 15%' },
+                    { pct: 20, label: 'Tienda 20%' },
+                    { pct: 25, label: 'Granja 25%' },
+                    { pct: 30, label: 'Detalle 30%' },
+                  ].map((item) => {
+                    const calcItem = calcularPreciosSugeridosPollos({
+                      lote: loteActivo,
+                      ventasLote: ventasLoteActivo,
+                      alimentosLote: alimentosLoteActivo,
+                      gastosLote: gastosLoteActivo,
+                      margenObjetivoPct: item.pct,
+                      modoCosteo: modoCosteoVenta,
+                    });
+                    const pSugerido = modalidadVenta === 'en_canal'
+                      ? calcItem.canal.precioSugeridoKg
+                      : calcItem.enPie.precioSugeridoKg;
+
+                    return (
+                      <button
+                        key={item.pct}
+                        type="button"
+                        onClick={() => setPrecioPorKg(pSugerido)}
+                        className={`py-1.5 px-1 rounded-xl border text-center transition-all ${
+                          precioPorKg === pSugerido
+                            ? 'bg-amber-600 text-white border-amber-700 shadow-sm font-black'
+                            : 'bg-white text-slate-700 border-amber-200/90 hover:bg-amber-100/60'
+                        }`}
+                      >
+                        <span className="text-[9px] font-bold block leading-none mb-0.5">{item.label}</span>
+                        <span className="text-[11px] font-black block">${pSugerido.toLocaleString()}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
               {/* Precio por Kilo */}
               <div>
                 <label className="text-xs font-bold text-slate-600 block mb-1">
@@ -599,6 +703,26 @@ export function BotoneraTab() {
                   onChange={(e) => setPrecioPorKg(Number(e.target.value))}
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 font-bold text-slate-800"
                 />
+
+                {/* Indicador en tiempo real de margen según precio ingresado */}
+                <div className="mt-1.5 flex items-center justify-between text-[11px] px-1">
+                  <span className="text-slate-500 text-[10px]">
+                    Costo base: <strong>{formatCOP(costoUnitarioActivo)}/kg</strong>
+                  </span>
+                  <span
+                    className={`font-black px-2 py-0.5 rounded-full text-[10px] ${
+                      precioPorKg < costoUnitarioActivo
+                        ? 'bg-rose-100 text-rose-700 border border-rose-200'
+                        : margenCalculado >= 20
+                        ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                        : 'bg-amber-100 text-amber-800 border border-amber-200'
+                    }`}
+                  >
+                    {precioPorKg < costoUnitarioActivo
+                      ? `🚨 Bajo costo (-${formatCOP(costoUnitarioActivo - precioPorKg)}/kg)`
+                      : `Margen: ${margenCalculado}% (+${formatCOP(gananciaCalculada)}/kg)`}
+                  </span>
+                </div>
               </div>
 
               {/* Total Calculado */}

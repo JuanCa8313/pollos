@@ -9,7 +9,7 @@ interface LoginScreenProps {
 }
 
 export default function LoginScreen({ isOnline }: LoginScreenProps) {
-  const { loginWithGoogle, loginRapido, isLoading } = useAuth();
+  const { loginWithGoogle, loginRapido, isLoading, error } = useAuth();
 
   return (
     <div className="min-h-screen bg-slate-900 text-slate-100 flex items-center justify-center p-4">
@@ -30,6 +30,14 @@ export default function LoginScreen({ isOnline }: LoginScreenProps) {
             Granja OS • Control Zootécnico & Financiero a 2.200 msnm
           </p>
         </div>
+
+        {/* Mensaje de error si falla auth */}
+        {error && (
+          <div className="bg-rose-500/15 border border-rose-500/40 text-rose-200 text-xs p-3.5 rounded-2xl flex items-center gap-2.5">
+            <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+            <span className="text-[11px] leading-normal">{error}</span>
+          </div>
+        )}
 
         {/* Estado Sin Internet */}
         {!isOnline && (

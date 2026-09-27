@@ -23,11 +23,13 @@ function PollosAppContent() {
   const { user, isAdmin, isOperador, isRepartidor, loginRapido, logout, isLoading } = useAuth();
 
   useEffect(() => {
-    // Limpieza de hash OAuth en URL (evita loops y tokens visibles)
-    if (typeof window !== 'undefined' && window.location.hash.includes('access_token')) {
+    // Limpieza de hash OAuth en URL (solo cuando el usuario ya ha sido autenticado por Supabase)
+    if (user && typeof window !== 'undefined' && window.location.hash.includes('access_token')) {
       window.history.replaceState(null, '', window.location.pathname + window.location.search);
     }
+  }, [user]);
 
+  useEffect(() => {
     setIsOnline(navigator.onLine);
     const handleOnline = () => setIsOnline(true);
     const handleOffline = () => setIsOnline(false);

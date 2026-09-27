@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pollos-pwa-v1';
+const CACHE_NAME = 'pollos-pwa-v2';
 const PRECACHE_ASSETS = [
   '/',
   '/manifest.webmanifest',
