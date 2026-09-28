@@ -73,8 +73,12 @@ export function BotoneraTab() {
     const todosLotes = await dbPollos.lotes.toArray();
     const listLotes = todosLotes.filter((l) => Boolean(l.activo));
     setLotes(listLotes);
-    if (listLotes.length > 0 && !selectedLoteId) {
-      setSelectedLoteId(listLotes[0].id);
+    if (listLotes.length > 0) {
+      if (!selectedLoteId || !listLotes.some((l) => l.id === selectedLoteId)) {
+        setSelectedLoteId(listLotes[0].id);
+      }
+    } else {
+      setSelectedLoteId('');
     }
     const todosClientes = await dbPollos.clientes.toArray();
     const listClientes = todosClientes.filter((c) => Boolean(c.activo));
@@ -351,17 +355,25 @@ export function BotoneraTab() {
           onChange={(e) => setSelectedLoteId(e.target.value)}
           className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500"
         >
-          {lotes.map((lote) => (
-            <option key={lote.id} value={lote.id}>
-              {lote.nombre} ({lote.cantidadActual} aves vivas)
-            </option>
-          ))}
+          {lotes.length === 0 ? (
+            <option value="">No hay lotes activos creados</option>
+          ) : (
+            lotes.map((lote) => (
+              <option key={lote.id} value={lote.id}>
+                {lote.nombre} ({lote.cantidadActual} aves vivas)
+              </option>
+            ))
+          )}
         </select>
-        {loteActivo && (
+        {loteActivo ? (
           <div className="mt-2.5 flex items-center justify-between text-xs text-slate-600 bg-amber-50/70 p-2.5 rounded-lg border border-amber-200/60">
             <span>Raza: <strong>{loteActivo.raza}</strong></span>
             <span>Vivas: <strong className="text-amber-700">{loteActivo.cantidadActual}</strong> / {loteActivo.cantidadInicial}</span>
           </div>
+        ) : (
+          <p className="mt-2 text-xs text-amber-800 bg-amber-50 p-2.5 rounded-xl border border-amber-200">
+            ⚠️ No hay ningún lote de pollos activo. Ve a la pestaña <strong>Lotes</strong> para crear tu lote real.
+          </p>
         )}
       </div>
 
@@ -509,19 +521,28 @@ export function BotoneraTab() {
 
       {/* MODAL: VENTA DE POLLOS */}
       {modalType === 'venta' && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center p-3">
-          <div className="bg-white w-full max-w-md rounded-3xl p-5 shadow-2xl max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between mb-4">
+        <div
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4"
+          onClick={() => setModalType(null)}
+        >
+          <div
+            className="bg-white w-full max-w-md rounded-3xl p-5 shadow-2xl max-h-[88dvh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-100 flex-shrink-0">
               <h3 className="font-black text-lg text-slate-900 flex items-center gap-2">
                 <ShoppingBag className="w-5 h-5 text-orange-600" />
                 Registrar Venta de Pollos
               </h3>
-              <button onClick={() => setModalType(null)} className="p-1 rounded-full hover:bg-slate-100">
-                <X className="w-5 h-5 text-slate-500" />
+              <button
+                onClick={() => setModalType(null)}
+                className="p-1 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-600 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="space-y-3.5">
+            <div className="space-y-3.5 flex-1 overflow-y-auto pr-1">
               {/* Modalidad */}
               <div>
                 <label className="text-xs font-bold text-slate-600 block mb-1">Modalidad de Venta</label>
@@ -776,10 +797,12 @@ export function BotoneraTab() {
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-800 placeholder-slate-400"
                 />
               </div>
+            </div>
 
+            <div className="pt-3 mt-2 border-t border-slate-100 flex-shrink-0">
               <button
                 onClick={handleGuardarVenta}
-                className="w-full mt-2 bg-orange-600 hover:bg-orange-700 text-white font-black py-3 rounded-2xl shadow-lg active:scale-95 transition-all text-sm"
+                className="w-full bg-orange-600 hover:bg-orange-700 text-white font-black py-3 rounded-2xl shadow-lg active:scale-95 transition-all text-sm cursor-pointer"
               >
                 Confirmar y Registrar Venta
               </button>
@@ -790,19 +813,28 @@ export function BotoneraTab() {
 
       {/* MODAL: SUMINISTRO ALIMENTO CONCENTRADO */}
       {modalType === 'alimento' && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center p-3">
-          <div className="bg-white w-full max-w-md rounded-3xl p-5 shadow-2xl">
-            <div className="flex items-center justify-between mb-4">
+        <div
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4"
+          onClick={() => setModalType(null)}
+        >
+          <div
+            className="bg-white w-full max-w-md rounded-3xl p-5 shadow-2xl max-h-[88dvh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-100 flex-shrink-0">
               <h3 className="font-black text-lg text-slate-900 flex items-center gap-2">
                 <Wheat className="w-5 h-5 text-emerald-600" />
                 Registrar Concentrado
               </h3>
-              <button onClick={() => setModalType(null)} className="p-1 rounded-full hover:bg-slate-100">
-                <X className="w-5 h-5 text-slate-500" />
+              <button
+                onClick={() => setModalType(null)}
+                className="p-1 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-600 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="space-y-3.5">
+            <div className="space-y-3.5 flex-1 overflow-y-auto pr-1">
               <div>
                 <label className="text-xs font-bold text-slate-600 block mb-1">Etapa de Alimentación</label>
                 <select
@@ -838,10 +870,12 @@ export function BotoneraTab() {
                   />
                 </div>
               </div>
+            </div>
 
+            <div className="pt-3 mt-2 border-t border-slate-100 flex-shrink-0">
               <button
                 onClick={handleGuardarAlimento}
-                className="w-full mt-2 bg-emerald-600 hover:bg-emerald-700 text-white font-black py-3 rounded-2xl shadow-lg active:scale-95 transition-all text-sm"
+                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black py-3 rounded-2xl shadow-lg active:scale-95 transition-all text-sm cursor-pointer"
               >
                 Guardar Consumo de Purina
               </button>
@@ -852,23 +886,32 @@ export function BotoneraTab() {
 
       {/* MODAL: LARVAS BSF */}
       {modalType === 'bsf' && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center p-3">
-          <div className="bg-white w-full max-w-md rounded-3xl p-5 shadow-2xl">
-            <div className="flex items-center justify-between mb-4">
+        <div
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4"
+          onClick={() => setModalType(null)}
+        >
+          <div
+            className="bg-white w-full max-w-md rounded-3xl p-5 shadow-2xl max-h-[88dvh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-100 flex-shrink-0">
               <h3 className="font-black text-lg text-slate-900 flex items-center gap-2">
                 <Bug className="w-5 h-5 text-indigo-600" />
                 Proteína Viva BSF (Costo $0)
               </h3>
-              <button onClick={() => setModalType(null)} className="p-1 rounded-full hover:bg-slate-100">
-                <X className="w-5 h-5 text-slate-500" />
+              <button
+                onClick={() => setModalType(null)}
+                className="p-1 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-600 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="p-3 bg-indigo-50 border border-indigo-200 rounded-2xl mb-3 text-xs text-indigo-900">
-              💡 <strong>Economía Circular:</strong> Cada kilo de larva viva sustituye hasta 400g de concentrado comercial aportando 40% de proteína y grasa natural.
-            </div>
+            <div className="space-y-3.5 flex-1 overflow-y-auto pr-1">
+              <div className="p-3 bg-indigo-50 border border-indigo-200 rounded-2xl text-xs text-indigo-900">
+                💡 <strong>Economía Circular:</strong> Cada kilo de larva viva sustituye hasta 400g de concentrado comercial aportando 40% de proteína y grasa natural.
+              </div>
 
-            <div className="space-y-3.5">
               <div>
                 <label className="text-xs font-bold text-slate-600 block mb-1">Kilos de Larva Cosechada</label>
                 <input
@@ -880,10 +923,12 @@ export function BotoneraTab() {
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 font-bold text-slate-800"
                 />
               </div>
+            </div>
 
+            <div className="pt-3 mt-2 border-t border-slate-100 flex-shrink-0">
               <button
                 onClick={handleGuardarBSF}
-                className="w-full mt-2 bg-indigo-600 hover:bg-indigo-700 text-white font-black py-3 rounded-2xl shadow-lg active:scale-95 transition-all text-sm"
+                className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-black py-3 rounded-2xl shadow-lg active:scale-95 transition-all text-sm cursor-pointer"
               >
                 Registrar Suministro BSF
               </button>
@@ -894,19 +939,28 @@ export function BotoneraTab() {
 
       {/* MODAL: MORTALIDAD */}
       {modalType === 'mortalidad' && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center p-3">
-          <div className="bg-white w-full max-w-md rounded-3xl p-5 shadow-2xl">
-            <div className="flex items-center justify-between mb-4">
+        <div
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4"
+          onClick={() => setModalType(null)}
+        >
+          <div
+            className="bg-white w-full max-w-md rounded-3xl p-5 shadow-2xl max-h-[88dvh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-100 flex-shrink-0">
               <h3 className="font-black text-lg text-slate-900 flex items-center gap-2">
                 <Skull className="w-5 h-5 text-rose-600" />
                 Registrar Bajas (Mortalidad)
               </h3>
-              <button onClick={() => setModalType(null)} className="p-1 rounded-full hover:bg-slate-100">
-                <X className="w-5 h-5 text-slate-500" />
+              <button
+                onClick={() => setModalType(null)}
+                className="p-1 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-600 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="space-y-3.5">
+            <div className="space-y-3.5 flex-1 overflow-y-auto pr-1">
               <div>
                 <label className="text-xs font-bold text-slate-600 block mb-1">Cantidad de Aves Muertas</label>
                 <input
@@ -932,10 +986,12 @@ export function BotoneraTab() {
                   <option value="otra">Otra causa</option>
                 </select>
               </div>
+            </div>
 
+            <div className="pt-3 mt-2 border-t border-slate-100 flex-shrink-0">
               <button
                 onClick={handleGuardarMortalidad}
-                className="w-full mt-2 bg-rose-600 hover:bg-rose-700 text-white font-black py-3 rounded-2xl shadow-lg active:scale-95 transition-all text-sm"
+                className="w-full bg-rose-600 hover:bg-rose-700 text-white font-black py-3 rounded-2xl shadow-lg active:scale-95 transition-all text-sm cursor-pointer"
               >
                 Confirmar Baja
               </button>
@@ -946,19 +1002,28 @@ export function BotoneraTab() {
 
       {/* MODAL: GASTO */}
       {modalType === 'gasto' && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center p-3">
-          <div className="bg-white w-full max-w-md rounded-3xl p-5 shadow-2xl">
-            <div className="flex items-center justify-between mb-4">
+        <div
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4"
+          onClick={() => setModalType(null)}
+        >
+          <div
+            className="bg-white w-full max-w-md rounded-3xl p-5 shadow-2xl max-h-[88dvh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-100 flex-shrink-0">
               <h3 className="font-black text-lg text-slate-900 flex items-center gap-2">
                 <Receipt className="w-5 h-5 text-slate-700" />
                 Registrar Gasto de Galpón
               </h3>
-              <button onClick={() => setModalType(null)} className="p-1 rounded-full hover:bg-slate-100">
-                <X className="w-5 h-5 text-slate-500" />
+              <button
+                onClick={() => setModalType(null)}
+                className="p-1 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-600 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="space-y-3.5">
+            <div className="space-y-3.5 flex-1 overflow-y-auto pr-1">
               <div>
                 <label className="text-xs font-bold text-slate-600 block mb-1">Categoría</label>
                 <select
@@ -1013,10 +1078,12 @@ export function BotoneraTab() {
                   </button>
                 </div>
               </div>
+            </div>
 
+            <div className="pt-3 mt-2 border-t border-slate-100 flex-shrink-0">
               <button
                 onClick={handleGuardarGasto}
-                className="w-full mt-2 bg-slate-900 hover:bg-slate-800 text-white font-black py-3 rounded-2xl shadow-lg active:scale-95 transition-all text-sm"
+                className="w-full bg-slate-900 hover:bg-slate-800 text-white font-black py-3 rounded-2xl shadow-lg active:scale-95 transition-all text-sm cursor-pointer"
               >
                 Guardar Gasto
               </button>
@@ -1027,19 +1094,28 @@ export function BotoneraTab() {
 
       {/* MODAL: COBRAR FIADO (ABONO) */}
       {modalType === 'abono' && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center p-3">
-          <div className="bg-white w-full max-w-md rounded-3xl p-5 shadow-2xl">
-            <div className="flex items-center justify-between mb-4">
+        <div
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4"
+          onClick={() => setModalType(null)}
+        >
+          <div
+            className="bg-white w-full max-w-md rounded-3xl p-5 shadow-2xl max-h-[88dvh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-100 flex-shrink-0">
               <h3 className="font-black text-lg text-slate-900 flex items-center gap-2">
                 <HandCoins className="w-5 h-5 text-emerald-600" />
                 Cobrar Fiado / Abono de Cartera
               </h3>
-              <button onClick={() => setModalType(null)} className="p-1 rounded-full hover:bg-slate-100">
-                <X className="w-5 h-5 text-slate-500" />
+              <button
+                onClick={() => setModalType(null)}
+                className="p-1 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-600 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="space-y-3.5">
+            <div className="space-y-3.5 flex-1 overflow-y-auto pr-1">
               <div>
                 <label className="text-xs font-bold text-slate-600 block mb-1">Cliente</label>
                 <select
@@ -1070,11 +1146,13 @@ export function BotoneraTab() {
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 font-bold text-slate-800"
                 />
               </div>
+            </div>
 
+            <div className="pt-3 mt-2 border-t border-slate-100 flex-shrink-0">
               <button
                 onClick={handleGuardarAbono}
                 disabled={!clienteIdAbono}
-                className="w-full mt-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-black py-3 rounded-2xl shadow-lg active:scale-95 transition-all text-sm"
+                className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-black py-3 rounded-2xl shadow-lg active:scale-95 transition-all text-sm cursor-pointer"
               >
                 Registrar Cobro
               </button>

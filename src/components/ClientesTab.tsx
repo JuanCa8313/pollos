@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { dbPollos, emitPollosUpdated, type ClienteLocal } from '../lib/db';
-import { Users, UserPlus, Phone, MapPin, HandCoins, AlertCircle } from 'lucide-react';
+import { Users, UserPlus, Phone, MapPin, HandCoins, AlertCircle, X } from 'lucide-react';
 import { formatCOP } from '../lib/utils';
 
 export function ClientesTab() {
@@ -156,11 +156,25 @@ export function ClientesTab() {
 
       {/* MODAL NUEVO CLIENTE */}
       {showNuevoClienteModal && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-3">
-          <div className="bg-white w-full max-w-md rounded-3xl p-5 shadow-2xl">
-            <h3 className="font-black text-lg text-slate-900 mb-4">Agregar Cliente</h3>
+        <div
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4"
+          onClick={() => setShowNuevoClienteModal(false)}
+        >
+          <div
+            className="bg-white w-full max-w-md rounded-3xl p-5 shadow-2xl max-h-[88dvh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-100 flex-shrink-0">
+              <h3 className="font-black text-lg text-slate-900">Agregar Cliente</h3>
+              <button
+                onClick={() => setShowNuevoClienteModal(false)}
+                className="p-1 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-600 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
 
-            <div className="space-y-3">
+            <div className="space-y-3 flex-1 overflow-y-auto pr-1">
               <div>
                 <label className="text-xs font-bold text-slate-600 block mb-1">Nombre Completo</label>
                 <input
@@ -193,21 +207,21 @@ export function ClientesTab() {
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800"
                 />
               </div>
+            </div>
 
-              <div className="flex gap-2 pt-2">
-                <button
-                  onClick={() => setShowNuevoClienteModal(false)}
-                  className="w-1/2 py-2.5 rounded-xl border border-slate-200 font-bold text-xs text-slate-600"
-                >
-                  Cancelar
-                </button>
-                <button
-                  onClick={handleCrearCliente}
-                  className="w-1/2 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-black text-xs shadow-md"
-                >
-                  Guardar
-                </button>
-              </div>
+            <div className="flex gap-2 pt-3 mt-2 border-t border-slate-100 flex-shrink-0">
+              <button
+                onClick={() => setShowNuevoClienteModal(false)}
+                className="w-1/2 py-2.5 rounded-xl border border-slate-200 font-bold text-xs text-slate-600 hover:bg-slate-50 cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleCrearCliente}
+                className="w-1/2 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-black text-xs shadow-md cursor-pointer"
+              >
+                Guardar
+              </button>
             </div>
           </div>
         </div>
@@ -215,15 +229,31 @@ export function ClientesTab() {
 
       {/* MODAL COBRAR ABONO */}
       {showAbonoModal && selectedCliente && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-3">
-          <div className="bg-white w-full max-w-md rounded-3xl p-5 shadow-2xl">
-            <h3 className="font-black text-lg text-slate-900 mb-1">Registrar Abono</h3>
-            <p className="text-xs text-slate-500 mb-4">
-              Cliente: <strong>{selectedCliente.nombre}</strong> (Deuda actual:{' '}
-              <strong className="text-rose-600">{formatCOP(selectedCliente.saldoPendiente)}</strong>)
-            </p>
+        <div
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4"
+          onClick={() => setShowAbonoModal(false)}
+        >
+          <div
+            className="bg-white w-full max-w-md rounded-3xl p-5 shadow-2xl max-h-[88dvh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-100 flex-shrink-0">
+              <div>
+                <h3 className="font-black text-lg text-slate-900 leading-tight">Registrar Abono</h3>
+                <p className="text-xs text-slate-500">
+                  Cliente: <strong>{selectedCliente.nombre}</strong> (Deuda:{' '}
+                  <strong className="text-rose-600">{formatCOP(selectedCliente.saldoPendiente)}</strong>)
+                </p>
+              </div>
+              <button
+                onClick={() => setShowAbonoModal(false)}
+                className="p-1 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-600 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
 
-            <div className="space-y-3">
+            <div className="space-y-3 flex-1 overflow-y-auto pr-1">
               <div>
                 <label className="text-xs font-bold text-slate-600 block mb-1">Monto a Recibir (COP)</label>
                 <input
@@ -242,7 +272,7 @@ export function ClientesTab() {
                   <button
                     type="button"
                     onClick={() => setMetodoAbono('efectivo')}
-                    className={`py-2 rounded-xl text-xs font-bold capitalize transition-all ${
+                    className={`py-2 rounded-xl text-xs font-bold capitalize transition-all cursor-pointer ${
                       metodoAbono === 'efectivo'
                         ? 'bg-emerald-600 text-white shadow'
                         : 'bg-slate-100 text-slate-700'
@@ -253,7 +283,7 @@ export function ClientesTab() {
                   <button
                     type="button"
                     onClick={() => setMetodoAbono('transferencia')}
-                    className={`py-2 rounded-xl text-xs font-bold capitalize transition-all ${
+                    className={`py-2 rounded-xl text-xs font-bold capitalize transition-all cursor-pointer ${
                       metodoAbono === 'transferencia'
                         ? 'bg-emerald-600 text-white shadow'
                         : 'bg-slate-100 text-slate-700'
@@ -263,21 +293,21 @@ export function ClientesTab() {
                   </button>
                 </div>
               </div>
+            </div>
 
-              <div className="flex gap-2 pt-2">
-                <button
-                  onClick={() => setShowAbonoModal(false)}
-                  className="w-1/2 py-2.5 rounded-xl border border-slate-200 font-bold text-xs text-slate-600"
-                >
-                  Cancelar
-                </button>
-                <button
-                  onClick={handleRegistrarAbono}
-                  className="w-1/2 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs shadow-md"
-                >
-                  Confirmar Cobro
-                </button>
-              </div>
+            <div className="flex gap-2 pt-3 mt-2 border-t border-slate-100 flex-shrink-0">
+              <button
+                onClick={() => setShowAbonoModal(false)}
+                className="w-1/2 py-2.5 rounded-xl border border-slate-200 font-bold text-xs text-slate-600 hover:bg-slate-50 cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleRegistrarAbono}
+                className="w-1/2 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs shadow-md cursor-pointer"
+              >
+                Confirmar Cobro
+              </button>
             </div>
           </div>
         </div>

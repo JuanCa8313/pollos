@@ -19,7 +19,7 @@ export function BottomNav({ currentTab, onTabChange }: BottomNavProps) {
   ];
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-md border-t border-slate-200 px-2 py-2">
+    <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200 px-2 py-2">
       <div className="max-w-md mx-auto grid grid-cols-4 gap-1">
         {tabs.map((tab) => {
           const Icon = tab.icon;

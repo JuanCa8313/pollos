@@ -54,9 +54,12 @@ export function TableroTab() {
     setLotes(allLotes);
 
     const activeLote = allLotes.find((l) => l.activo) || allLotes[0];
-    const targetLoteId = selectedLoteId || activeLote?.id || '';
-    if (!selectedLoteId && targetLoteId) {
-      setSelectedLoteId(targetLoteId);
+    if (allLotes.length > 0) {
+      if (!selectedLoteId || !allLotes.some((l) => l.id === selectedLoteId)) {
+        setSelectedLoteId(activeLote ? activeLote.id : allLotes[0].id);
+      }
+    } else {
+      setSelectedLoteId('');
     }
 
     const allVentas = await dbPollos.ventas.toArray();
@@ -167,11 +170,15 @@ export function TableroTab() {
           onChange={(e) => setSelectedLoteId(e.target.value)}
           className="bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs font-bold text-slate-700"
         >
-          {lotes.map((l) => (
-            <option key={l.id} value={l.id}>
-              {l.nombre}
-            </option>
-          ))}
+          {lotes.length === 0 ? (
+            <option value="">Sin lotes creados</option>
+          ) : (
+            lotes.map((l) => (
+              <option key={l.id} value={l.id}>
+                {l.nombre}
+              </option>
+            ))
+          )}
         </select>
       </div>
 

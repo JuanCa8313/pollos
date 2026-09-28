@@ -116,6 +116,11 @@ export function emitPollosUpdated() {
 
 // Inicializador de datos predeterminados (incluye el lote actual de 2 meses)
 export async function seedInitialPollosData() {
+  if (typeof window !== 'undefined') {
+    const seeded = localStorage.getItem('pollos_seed_done');
+    if (seeded) return;
+  }
+
   const lotesCount = await dbPollos.lotes.count();
   if (lotesCount === 0) {
     const hoy = new Date();
@@ -148,5 +153,9 @@ export async function seedInitialPollosData() {
       activo: true,
       createdAt: new Date().toISOString(),
     });
+  }
+
+  if (typeof window !== 'undefined') {
+    localStorage.setItem('pollos_seed_done', 'true');
   }
 }

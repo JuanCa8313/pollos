@@ -14,8 +14,14 @@ export function DocumentacionModal({ isOpen, onClose }: DocumentacionModalProps)
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-3">
-      <div className="bg-white w-full max-w-lg rounded-3xl p-5 shadow-2xl max-h-[88vh] flex flex-col">
+    <div
+      className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white w-full max-w-lg rounded-3xl p-5 shadow-2xl max-h-[88dvh] flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
         <div className="flex items-center justify-between pb-3 border-b border-slate-100">
           <div className="flex items-center gap-2">
@@ -132,13 +138,14 @@ export function DocumentacionModal({ isOpen, onClose }: DocumentacionModalProps)
             </div>
           )}
         </div>
-
-        <button
-          onClick={onClose}
-          className="w-full mt-4 bg-slate-900 hover:bg-slate-800 text-white font-bold py-2.5 rounded-2xl text-xs"
-        >
-          Entendido
-        </button>
+        <div className="pt-3 mt-3 border-t border-slate-100 flex-shrink-0">
+          <button
+            onClick={onClose}
+            className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-2.5 rounded-2xl text-xs cursor-pointer"
+          >
+            Entendido
+          </button>
+        </div>
       </div>
     </div>
   );
