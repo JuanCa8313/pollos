@@ -3,13 +3,37 @@
 import React, { useState, useEffect } from 'react';
 import { dbPollos, emitPollosUpdated, type LotePollo, type ClienteLocal } from '../lib/db';
 import { getSupabaseClient } from '../lib/supabase';
-import { ShoppingBag, Wheat, Bug, Skull, Receipt, HandCoins, Check, X, MessageCircle, Trash2, Sparkles, Calculator } from 'lucide-react';
+import {
+  ShoppingBag,
+  Wheat,
+  Bug,
+  Skull,
+  Receipt,
+  HandCoins,
+  Check,
+  X,
+  MessageCircle,
+  Trash2,
+  Sparkles,
+  Calculator,
+  Tag,
+  Edit2,
+  PackageCheck,
+} from 'lucide-react';
 import { formatCOP, cleanNumberInput } from '../lib/utils';
 import type { VentaPollo, RegistroAlimentoPollo, GastoPollo } from '../lib/db';
 import {
   calcularPreciosSugeridosPollos,
   type ModoCosteoPollos,
 } from '../lib/preciosSugeridosPollos';
+import {
+  INSUMOS_DEFAULT_POLLOS,
+  getPreciosInsumosGuardados,
+  guardarPrecioInsumo,
+  obtenerInsumoPorCategoria,
+  type CategoriaInsumoPollo,
+  type SubtipoConcentradoPollo,
+} from '../lib/insumosPollos';
 
 export function BotoneraTab() {
   const [lotes, setLotes] = useState<LotePollo[]>([]);
@@ -24,6 +48,11 @@ export function BotoneraTab() {
   >(null);
   const [mensajeExito, setMensajeExito] = useState<string | null>(null);
 
+  // Precios de insumos guardados (reactivos con localStorage)
+  const [preciosInsumos, setPreciosInsumos] = useState<Record<string, number>>(() => getPreciosInsumosGuardados());
+  const [editandoPrecioInsumo, setEditandoPrecioInsumo] = useState<boolean>(false);
+  const [precioInsumoTemporal, setPrecioInsumoTemporal] = useState<string>('');
+
   // Estados de formularios
   // Venta
   const [modalidadVenta, setModalidadVenta] = useState<'en_pie' | 'en_canal'>('en_canal');
@@ -35,10 +64,10 @@ export function BotoneraTab() {
   const [clienteIdVenta, setClienteIdVenta] = useState<string>('');
   const [nuevoClienteNombre, setNuevoClienteNombre] = useState<string>('');
 
-  // Alimento
-  const [tipoAlimento, setTipoAlimento] = useState<'iniciacion' | 'engorde' | 'finalizador'>('engorde');
+  // Alimento Purina
+  const [tipoAlimento, setTipoAlimento] = useState<'iniciacion' | 'engorde' | 'finalizador'>('finalizador');
   const [cantidadAlimentoKg, setCantidadAlimentoKg] = useState<string>('40');
-  const [costoAlimentoCop, setCostoAlimentoCop] = useState<string>('115000'); // Bulto aprox 40kg
+  const [costoAlimentoCop, setCostoAlimentoCop] = useState<string>('92000'); // Bulto 40kg
 
   // BSF
   const [cantidadBsfKg, setCantidadBsfKg] = useState<string>('2');
@@ -48,10 +77,13 @@ export function BotoneraTab() {
   const [causaMortalidad, setCausaMortalidad] = useState<'frio' | 'ascitis_infarto' | 'accidente' | 'enfermedad' | 'otra'>('ascitis_infarto');
 
   // Gasto
-  const [categoriaGasto, setCategoriaGasto] = useState<'gas_calefaccion' | 'viruta_cama' | 'medicamentos_vitaminas' | 'fletes' | 'mano_obra' | 'otro'>('viruta_cama');
+  const [categoriaGasto, setCategoriaGasto] = useState<CategoriaInsumoPollo>('concentrado');
+  const [subtipoConcentradoGasto, setSubtipoConcentradoGasto] = useState<SubtipoConcentradoPollo>('finalizador');
+  const [cantidadInsumoGasto, setCantidadInsumoGasto] = useState<string>('1');
   const [descripcionGasto, setDescripcionGasto] = useState<string>('');
-  const [montoGastoCop, setMontoGastoCop] = useState<string>('25000');
+  const [montoGastoCop, setMontoGastoCop] = useState<string>('92000');
   const [metodoPagoGasto, setMetodoPagoGasto] = useState<'efectivo' | 'transferencia'>('efectivo');
+  const [reabastecerAlimentoLote, setReabastecerAlimentoLote] = useState<boolean>(true);
 
   // Abono
   const [clienteIdAbono, setClienteIdAbono] = useState<string>('');
@@ -106,10 +138,77 @@ export function BotoneraTab() {
     return () => window.removeEventListener('granja-pollos-db-updated', listener);
   }, []);
 
+  useEffect(() => {
+    const handleInsumosUpdated = (e: any) => {
+      if (e.detail) setPreciosInsumos(e.detail);
+    };
+    window.addEventListener('granja-pollos-insumos-updated', handleInsumosUpdated);
+    return () => window.removeEventListener('granja-pollos-insumos-updated', handleInsumosUpdated);
+  }, []);
+
   const notificar = (msg: string) => {
     setMensajeExito(msg);
     emitPollosUpdated();
     setTimeout(() => setMensajeExito(null), 3000);
+  };
+
+  const insumoActualGasto = obtenerInsumoPorCategoria(categoriaGasto, subtipoConcentradoGasto);
+  const precioUnitarioInsumo = preciosInsumos[insumoActualGasto.id] || insumoActualGasto.precioReferencia;
+
+  const handleCambiarCategoriaGasto = (nuevaCat: CategoriaInsumoPollo) => {
+    setCategoriaGasto(nuevaCat);
+    setEditandoPrecioInsumo(false);
+    const ins = obtenerInsumoPorCategoria(nuevaCat, subtipoConcentradoGasto);
+    const precio = preciosInsumos[ins.id] || ins.precioReferencia;
+    const c = parseFloat(cantidadInsumoGasto) || 1;
+    setMontoGastoCop(Math.round(c * precio).toString());
+  };
+
+  const handleCambiarSubtipoConcentrado = (nuevoSub: SubtipoConcentradoPollo) => {
+    setSubtipoConcentradoGasto(nuevoSub);
+    setEditandoPrecioInsumo(false);
+    const ins = obtenerInsumoPorCategoria('concentrado', nuevoSub);
+    const precio = preciosInsumos[ins.id] || ins.precioReferencia;
+    const c = parseFloat(cantidadInsumoGasto) || 1;
+    setMontoGastoCop(Math.round(c * precio).toString());
+  };
+
+  const handleCambiarCantidadInsumo = (nuevaCant: string) => {
+    setCantidadInsumoGasto(nuevaCant);
+    const c = parseFloat(nuevaCant) || 0;
+    if (c > 0) {
+      setMontoGastoCop(Math.round(c * precioUnitarioInsumo).toString());
+    }
+  };
+
+  const handleGuardarNuevoPrecioBase = () => {
+    const nuevo = Number(cleanNumberInput(precioInsumoTemporal)) || 0;
+    if (nuevo > 0) {
+      guardarPrecioInsumo(insumoActualGasto.id, nuevo);
+      setPreciosInsumos((prev) => ({ ...prev, [insumoActualGasto.id]: nuevo }));
+      const c = parseFloat(cantidadInsumoGasto) || 1;
+      setMontoGastoCop(Math.round(c * nuevo).toString());
+      setEditandoPrecioInsumo(false);
+      notificar(`Precio de ${insumoActualGasto.nombre} actualizado a ${formatCOP(nuevo)}/${insumoActualGasto.unidad}`);
+    }
+  };
+
+  const handleCambiarTipoAlimento = (nuevoTipo: 'iniciacion' | 'engorde' | 'finalizador') => {
+    setTipoAlimento(nuevoTipo);
+    const insId = `concentrado_${nuevoTipo}`;
+    const precioBulto = preciosInsumos[insId] || (nuevoTipo === 'finalizador' ? 92000 : nuevoTipo === 'engorde' ? 95000 : 98000);
+    const kg = parseFloat(cantidadAlimentoKg) || 40;
+    setCostoAlimentoCop(Math.round((kg / 40) * precioBulto).toString());
+  };
+
+  const handleCambiarKilosAlimento = (nuevosKg: string) => {
+    setCantidadAlimentoKg(nuevosKg);
+    const kg = parseFloat(nuevosKg) || 0;
+    const insId = `concentrado_${tipoAlimento}`;
+    const precioBulto = preciosInsumos[insId] || (tipoAlimento === 'finalizador' ? 92000 : tipoAlimento === 'engorde' ? 95000 : 98000);
+    if (kg > 0) {
+      setCostoAlimentoCop(Math.round((kg / 40) * precioBulto).toString());
+    }
   };
 
   // Convertir a Kilos reales para base de datos y zootecnia
@@ -235,18 +334,29 @@ export function BotoneraTab() {
   // 2. Guardar Alimento Purina
   const handleGuardarAlimento = async () => {
     if (!selectedLoteId) return;
+    const kgNum = Number(cantidadAlimentoKg) || 0;
+    const costoNum = Number(costoAlimentoCop) || 0;
+
     await dbPollos.alimento.add({
       id: 'ali-' + Date.now(),
       loteId: selectedLoteId,
       fecha: new Date().toISOString().split('T')[0],
       tipoAlimento: tipoAlimento,
-      cantidadKg: Number(cantidadAlimentoKg),
-      costoTotalCop: Number(costoAlimentoCop),
+      cantidadKg: kgNum,
+      costoTotalCop: costoNum,
       createdAt: new Date().toISOString(),
     });
+
+    // Si ingresó costo para un bulto (o equivalente a 40kg), actualizar el precio de referencia guardado
+    if (kgNum > 0 && costoNum > 0) {
+      const precioBultoCalculado = Math.round((costoNum / kgNum) * 40);
+      const insId = `concentrado_${tipoAlimento}`;
+      guardarPrecioInsumo(insId, precioBultoCalculado);
+    }
+
     await cargarDatos();
     setModalType(null);
-    notificar(`Alimento registrado: ${cantidadAlimentoKg} kg (${formatCOP(Number(costoAlimentoCop) || 0)})`);
+    notificar(`Alimento registrado: ${cantidadAlimentoKg} kg (${formatCOP(costoNum)})`);
   };
 
   // 3. Guardar Larva BSF (Costo $0)
@@ -292,19 +402,49 @@ export function BotoneraTab() {
 
   // 5. Guardar Gasto
   const handleGuardarGasto = async () => {
+    const ins = obtenerInsumoPorCategoria(categoriaGasto, subtipoConcentradoGasto);
+    const desc = descripcionGasto.trim() || `${cantidadInsumoGasto} ${ins.unidad} de ${ins.nombre}`;
+    const monto = Number(montoGastoCop) || 0;
+
     await dbPollos.gastos.add({
       id: 'gas-' + Date.now(),
       loteId: selectedLoteId || undefined,
       fecha: new Date().toISOString().split('T')[0],
       categoria: categoriaGasto,
-      descripcion: descripcionGasto || categoriaGasto.replace('_', ' '),
-      montoCop: Number(montoGastoCop),
+      descripcion: desc,
+      montoCop: monto,
       metodoPago: metodoPagoGasto,
       createdAt: new Date().toISOString(),
     });
+
+    // Si es concentrado y se seleccionó reabastecer al lote
+    if (categoriaGasto === 'concentrado' && reabastecerAlimentoLote && selectedLoteId) {
+      const bultos = parseFloat(cantidadInsumoGasto) || 1;
+      const kgTotal = Math.round(bultos * (ins.kilosPorUnidad || 40));
+      await dbPollos.alimento.add({
+        id: 'ali-' + Date.now(),
+        loteId: selectedLoteId,
+        fecha: new Date().toISOString().split('T')[0],
+        tipoAlimento: subtipoConcentradoGasto,
+        cantidadKg: kgTotal,
+        costoTotalCop: monto,
+        notas: `Compra registrada desde Gastos: ${desc}`,
+        createdAt: new Date().toISOString(),
+      });
+    }
+
+    // Actualizar precio de referencia si compró por unidad y cambió el valor
+    const cantNum = parseFloat(cantidadInsumoGasto) || 1;
+    if (cantNum > 0 && monto > 0) {
+      const precioUnitarioReal = Math.round(monto / cantNum);
+      if (Math.abs(precioUnitarioReal - precioUnitarioInsumo) > 100) {
+        guardarPrecioInsumo(ins.id, precioUnitarioReal);
+      }
+    }
+
     await cargarDatos();
     setModalType(null);
-    notificar(`Gasto registrado: ${formatCOP(Number(montoGastoCop) || 0)}`);
+    notificar(`Gasto registrado: ${formatCOP(monto)} (${desc})`);
   };
 
   // 6. Guardar Abono
@@ -866,13 +1006,24 @@ export function BotoneraTab() {
                 <label className="text-xs font-bold text-slate-600 block mb-1">Etapa de Alimentación</label>
                 <select
                   value={tipoAlimento}
-                  onChange={(e) => setTipoAlimento(e.target.value as any)}
+                  onChange={(e) => handleCambiarTipoAlimento(e.target.value as any)}
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800"
                 >
+                  <option value="finalizador">Finalizador / Retiro</option>
                   <option value="engorde">Engorde (Día 22 al sacrificio)</option>
                   <option value="iniciacion">Iniciación (Día 1 al 21)</option>
-                  <option value="finalizador">Finalizador / Retiro</option>
                 </select>
+              </div>
+
+              {/* Badge de valor guardado */}
+              <div className="p-2.5 bg-emerald-50 border border-emerald-200/80 rounded-xl text-xs flex items-center justify-between">
+                <div>
+                  <span className="text-emerald-800 font-bold block">Valor Guardado ({tipoAlimento}):</span>
+                  <span className="text-slate-800 font-black">
+                    {formatCOP(preciosInsumos[`concentrado_${tipoAlimento}`] || 92000)} / bulto (40 kg)
+                    <span className="text-slate-500 font-normal"> • {formatCOP(Math.round((preciosInsumos[`concentrado_${tipoAlimento}`] || 92000) / 40))}/kg</span>
+                  </span>
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -883,7 +1034,7 @@ export function BotoneraTab() {
                     min="1"
                     value={cantidadAlimentoKg}
                     onFocus={(e) => e.target.select()}
-                    onChange={(e) => setCantidadAlimentoKg(cleanNumberInput(e.target.value))}
+                    onChange={(e) => handleCambiarKilosAlimento(cleanNumberInput(e.target.value))}
                     placeholder="0"
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 font-bold text-slate-800"
                   />
@@ -892,7 +1043,7 @@ export function BotoneraTab() {
                   <label className="text-xs font-bold text-slate-600 block mb-1">Costo Total (COP)</label>
                   <input
                     type="number"
-                    step="5000"
+                    step="1000"
                     value={costoAlimentoCop}
                     onFocus={(e) => e.target.select()}
                     onChange={(e) => setCostoAlimentoCop(cleanNumberInput(e.target.value))}
@@ -1063,31 +1214,154 @@ export function BotoneraTab() {
                 <label className="text-xs font-bold text-slate-600 block mb-1">Categoría</label>
                 <select
                   value={categoriaGasto}
-                  onChange={(e) => setCategoriaGasto(e.target.value as any)}
+                  onChange={(e) => handleCambiarCategoriaGasto(e.target.value as any)}
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800"
                 >
-                  <option value="viruta_cama">Viruta / Cascarilla de arroz</option>
-                  <option value="gas_calefaccion">Gas propano / Calefacción</option>
-                  <option value="medicamentos_vitaminas">Medicamentos / Vitaminas</option>
-                  <option value="fletes">Flete / Transporte</option>
-                  <option value="mano_obra">Jornal / Mano de obra</option>
-                  <option value="otro">Otro insumo</option>
+                  <option value="concentrado">🌾 Concentrado / Alimento Purina</option>
+                  <option value="viruta_cama">🪵 Viruta / Cascarilla de arroz</option>
+                  <option value="gas_calefaccion">🔥 Gas propano / Calefacción</option>
+                  <option value="medicamentos_vitaminas">💊 Medicamentos / Vitaminas</option>
+                  <option value="pollitos_bb">🐥 Pollitos BB (Reposición)</option>
+                  <option value="fletes">🚚 Flete / Transporte</option>
+                  <option value="mano_obra">👷 Jornal / Mano de obra</option>
+                  <option value="otro">📦 Otro insumo / gasto</option>
                 </select>
               </div>
 
+              {/* Subtipo de concentrado si aplica */}
+              {categoriaGasto === 'concentrado' && (
+                <div>
+                  <label className="text-xs font-bold text-slate-600 block mb-1">Etapa de Concentrado</label>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {(['finalizador', 'engorde', 'iniciacion'] as SubtipoConcentradoPollo[]).map((sub) => (
+                      <button
+                        key={sub}
+                        type="button"
+                        onClick={() => handleCambiarSubtipoConcentrado(sub)}
+                        className={`py-1.5 px-2 rounded-xl text-xs font-bold capitalize transition-all border ${
+                          subtipoConcentradoGasto === sub
+                            ? 'bg-amber-500 text-white border-amber-600 shadow-sm'
+                            : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                        }`}
+                      >
+                        {sub === 'finalizador' ? 'Finalizador' : sub === 'engorde' ? 'Engorde' : 'Iniciación'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Tarjeta de Valor Guardado de Referencia */}
+              <div className="bg-amber-50/80 border border-amber-200/90 rounded-2xl p-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg">{insumoActualGasto.icono}</span>
+                    <div>
+                      <span className="text-[10px] font-black uppercase tracking-wider text-amber-800 block">
+                        Valor guardado ({insumoActualGasto.nombre})
+                      </span>
+                      <span className="text-sm font-black text-slate-900">
+                        {formatCOP(precioUnitarioInsumo)}
+                        <span className="text-xs font-normal text-slate-500"> / {insumoActualGasto.unidad}</span>
+                      </span>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPrecioInsumoTemporal(precioUnitarioInsumo.toString());
+                      setEditandoPrecioInsumo(!editandoPrecioInsumo);
+                    }}
+                    className="flex items-center gap-1 text-[11px] font-bold text-amber-800 bg-white border border-amber-200 hover:bg-amber-100 px-2.5 py-1 rounded-xl shadow-xs transition"
+                  >
+                    <Edit2 className="w-3 h-3" />
+                    <span>{editandoPrecioInsumo ? 'Cancelar' : 'Editar valor'}</span>
+                  </button>
+                </div>
+
+                {editandoPrecioInsumo && (
+                  <div className="mt-2.5 pt-2.5 border-t border-amber-200/70 flex items-center gap-2">
+                    <input
+                      type="number"
+                      value={precioInsumoTemporal}
+                      onFocus={(e) => e.target.select()}
+                      onChange={(e) => setPrecioInsumoTemporal(cleanNumberInput(e.target.value))}
+                      placeholder="Nuevo valor de referencia"
+                      className="w-full bg-white border border-amber-300 rounded-xl px-2.5 py-1.5 text-xs font-bold text-slate-900"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleGuardarNuevoPrecioBase}
+                      className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs px-3 py-1.5 rounded-xl whitespace-nowrap"
+                    >
+                      Guardar
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Cantidad y Monto */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-bold text-slate-600 block mb-1">
+                    Cantidad ({insumoActualGasto.unidad.split(' ')[0]}s)
+                  </label>
+                  <input
+                    type="number"
+                    min="0.1"
+                    step="any"
+                    value={cantidadInsumoGasto}
+                    onFocus={(e) => e.target.select()}
+                    onChange={(e) => handleCambiarCantidadInsumo(e.target.value)}
+                    placeholder="1"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 font-bold text-slate-800"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-slate-600 block mb-1">Total Monto (COP)</label>
+                  <input
+                    type="number"
+                    step="5000"
+                    value={montoGastoCop}
+                    onFocus={(e) => e.target.select()}
+                    onChange={(e) => setMontoGastoCop(cleanNumberInput(e.target.value))}
+                    placeholder="0"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 font-bold text-slate-800"
+                  />
+                </div>
+              </div>
+
+              {/* Opción de reabastecimiento automático en nutrición para concentrado */}
+              {categoriaGasto === 'concentrado' && selectedLoteId && (
+                <label className="flex items-center gap-2 p-2.5 bg-emerald-50/80 border border-emerald-200 rounded-xl cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={reabastecerAlimentoLote}
+                    onChange={(e) => setReabastecerAlimentoLote(e.target.checked)}
+                    className="w-4 h-4 accent-emerald-600 rounded"
+                  />
+                  <div className="text-xs text-emerald-950">
+                    <span className="font-bold block">Reabastecer nutrición del lote</span>
+                    <span className="text-[11px] text-emerald-800">
+                      Suma {(parseFloat(cantidadInsumoGasto) || 1) * (insumoActualGasto.kilosPorUnidad || 40)} kg al consumo y FCR del lote
+                    </span>
+                  </div>
+                </label>
+              )}
+
+              {/* Descripción opcional */}
               <div>
-                <label className="text-xs font-bold text-slate-600 block mb-1">Monto (COP)</label>
+                <label className="text-xs font-bold text-slate-600 block mb-1">Detalle / Proveedor (Opcional)</label>
                 <input
-                  type="number"
-                  step="5000"
-                  value={montoGastoCop}
-                  onFocus={(e) => e.target.select()}
-                  onChange={(e) => setMontoGastoCop(cleanNumberInput(e.target.value))}
-                  placeholder="0"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 font-bold text-slate-800"
+                  type="text"
+                  placeholder={`Ej: ${insumoActualGasto.nombre} en cooperativa / tienda`}
+                  value={descripcionGasto}
+                  onChange={(e) => setDescripcionGasto(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-800"
                 />
               </div>
 
+              {/* Método de Pago */}
               <div>
                 <label className="text-xs font-bold text-slate-600 block mb-1">Método de Pago</label>
                 <div className="grid grid-cols-2 gap-2">

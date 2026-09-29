@@ -94,7 +94,21 @@ export function TableroTab() {
 
   // Costo pollito
   const costoPollitosBB = (loteSeleccionado?.cantidadInicial || 0) * (loteSeleccionado?.costoPollitoUnitario || 0);
-  const costoConcentrado = alimentosLote.reduce((acc, a) => acc + a.costoTotalCop, 0);
+  const costoConcentradoAlimentos = alimentosLote.reduce((acc, a) => acc + a.costoTotalCop, 0);
+  const gastosConcentradoNoReabastecido = gastosLote
+    .filter((g) => g.categoria === 'concentrado' || (g as any).categoria === 'alimento_concentrado')
+    .filter(
+      (g) =>
+        !alimentosLote.some(
+          (a) =>
+            a.notas?.includes('Compra registrada desde Gastos') &&
+            a.fecha === g.fecha &&
+            a.costoTotalCop === g.montoCop
+        )
+    )
+    .reduce((acc, g) => acc + g.montoCop, 0);
+
+  const costoConcentrado = costoConcentradoAlimentos + gastosConcentradoNoReabastecido;
   const totalKgConcentrado = alimentosLote
     .filter((a) => a.tipoAlimento !== 'mosca_soldado_viva')
     .reduce((acc, a) => acc + a.cantidadKg, 0);
@@ -102,7 +116,9 @@ export function TableroTab() {
     .filter((a) => a.tipoAlimento === 'mosca_soldado_viva')
     .reduce((acc, a) => acc + a.cantidadKg, 0);
 
-  const totalOtrosGastos = gastosLote.reduce((acc, g) => acc + g.montoCop, 0);
+  const totalOtrosGastos = gastosLote
+    .filter((g) => g.categoria !== 'concentrado' && (g as any).categoria !== 'alimento_concentrado')
+    .reduce((acc, g) => acc + g.montoCop, 0);
   const costoTotalLote = costoPollitosBB + costoConcentrado + totalOtrosGastos;
 
   const utilidadNetaLote = totalIngresosVentas - costoTotalLote;

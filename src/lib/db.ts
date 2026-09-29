@@ -55,7 +55,16 @@ export interface GastoPollo {
   id: string;
   loteId?: string;
   fecha: string;
-  categoria: 'gas_calefaccion' | 'viruta_cama' | 'medicamentos_vitaminas' | 'fletes' | 'mano_obra' | 'otro';
+  categoria:
+    | 'concentrado'
+    | 'alimento_concentrado'
+    | 'gas_calefaccion'
+    | 'viruta_cama'
+    | 'medicamentos_vitaminas'
+    | 'pollitos_bb'
+    | 'fletes'
+    | 'mano_obra'
+    | 'otro';
   descripcion: string;
   montoCop: number;
   metodoPago: 'efectivo' | 'transferencia';

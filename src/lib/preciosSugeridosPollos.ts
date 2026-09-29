@@ -206,18 +206,32 @@ export function calcularPreciosSugeridosPollos({
   const ahorroBsfCop = Math.round(totalKgBsf * precioKgConcentradoReal);
 
   // Gastos desagregados
+  const gastosConcentradoExtra = gastosLote
+    .filter((g) => g.categoria === 'concentrado' || (g as any).categoria === 'alimento_concentrado')
+    .filter(
+      (g) =>
+        !alimentosLote.some(
+          (a) =>
+            a.notas?.includes('Compra registrada desde Gastos') &&
+            a.fecha === g.fecha &&
+            a.costoTotalCop === g.montoCop
+        )
+    )
+    .reduce((acc, g) => acc + g.montoCop, 0);
+  const totalCostoConcentradoEfectivo = totalCostoConcentrado + gastosConcentradoExtra;
+
   const gastosGas = gastosLote.filter((g) => g.categoria === 'gas_calefaccion').reduce((acc, g) => acc + g.montoCop, 0);
   const gastosViruta = gastosLote.filter((g) => g.categoria === 'viruta_cama').reduce((acc, g) => acc + g.montoCop, 0);
   const gastosMedicina = gastosLote.filter((g) => g.categoria === 'medicamentos_vitaminas').reduce((acc, g) => acc + g.montoCop, 0);
   const gastosFletes = gastosLote.filter((g) => g.categoria === 'fletes').reduce((acc, g) => acc + g.montoCop, 0);
   const gastosManoObra = gastosLote.filter((g) => g.categoria === 'mano_obra').reduce((acc, g) => acc + g.montoCop, 0);
-  const gastosOtros = gastosLote.filter((g) => g.categoria === 'otro').reduce((acc, g) => acc + g.montoCop, 0);
+  const gastosOtros = gastosLote.filter((g) => g.categoria === 'otro' || g.categoria === 'pollitos_bb').reduce((acc, g) => acc + g.montoCop, 0);
   const totalGastosOperativos = gastosGas + gastosViruta + gastosMedicina + gastosFletes + gastosManoObra + gastosOtros;
 
   // -------------------------------------------------------------
   // 2. MODO 1: P&L REAL (Devengado contable de todo lo gastado en el lote)
   // -------------------------------------------------------------
-  const totalEgresosLotePL = costoTotalPollitoBB + totalCostoConcentrado + totalGastosOperativos;
+  const totalEgresosLotePL = costoTotalPollitoBB + totalCostoConcentradoEfectivo + totalGastosOperativos;
   const avesEfectivasLote = Math.max(1, totalAvesVendidas + avesVivasActuales);
   
   // Costo por ave y por kg en P&L Real
