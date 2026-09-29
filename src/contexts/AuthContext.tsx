@@ -44,9 +44,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const loginRapido = (rol: AppRole) => {
     setError(null);
     const rolesMap: Record<AppRole, { name: string; email: string }> = {
-      administrador: { name: 'Juan Carlos (Dueño)', email: 'admin@finca.com' },
-      operador_galpon: { name: 'Operador de Galpón', email: 'galponero@finca.com' },
-      repartidor: { name: 'Repartidor de Pueblo', email: 'entregas@finca.com' },
+      administrador: { name: 'Juan Carlos (Dueño)', email: 'admin@granja.com' },
+      operador_galpon: { name: 'Operador de Galpón', email: 'galponero@granja.com' },
+      repartidor: { name: 'Repartidor de Pueblo', email: 'entregas@granja.com' },
     };
 
     const newUser: AuthUser = {
@@ -54,7 +54,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       email: rolesMap[rol].email,
       name: rolesMap[rol].name,
       roles: [rol],
-      fincaNombre: 'Finca 2.200 msnm',
+      fincaNombre: 'Granja 2.200 msnm',
     };
 
     setUser(newUser);
