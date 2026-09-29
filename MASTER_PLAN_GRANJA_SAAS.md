@@ -75,7 +75,7 @@ Dev-Projects/GALLINAS/
 ├── pescados/                     # PWA Acuicultura Truchas/Tilapias (pescados.somosgranja.com)
 ├── mosca soldado negra/          # PWA Bioconversión BSF (mosca.somosgranja.com)
 ├── fertilizantes/                # PWA Compostaje & Abonos (abonos.somosgranja.com)
-├── finca/                        # PWA Matriz: Consolidado & Caja Hogar (finca.somosgranja.com)
+├── granja/                       # PWA Matriz: Consolidado & Caja Hogar (granja.somosgranja.com)
 └── packages/                     # Lógica universal reutilizable (@granja/core)
 ```
 
