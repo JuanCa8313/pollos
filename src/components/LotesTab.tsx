@@ -2,8 +2,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { dbPollos, emitPollosUpdated, type LotePollo } from '../lib/db';
+import { getSupabaseClient } from '../lib/supabase';
 import { Bird, Plus, AlertTriangle, Calendar, X, Pencil, Trash2 } from 'lucide-react';
-import { formatCOP } from '../lib/utils';
+import { formatCOP, cleanNumberInput } from '../lib/utils';
 
 export function LotesTab() {
   const [lotes, setLotes] = useState<LotePollo[]>([]);
@@ -16,18 +17,18 @@ export function LotesTab() {
 
   // Formulario nuevo lote
   const [nombre, setNombre] = useState<string>('');
-  const [cantidadInicial, setCantidadInicial] = useState<number>(50);
-  const [costoPollitoUnitario, setCostoPollitoUnitario] = useState<number>(3500);
-  const [pesoPromedioInicialKg, setPesoPromedioInicialKg] = useState<number>(0.05);
+  const [cantidadInicial, setCantidadInicial] = useState<string>('50');
+  const [costoPollitoUnitario, setCostoPollitoUnitario] = useState<string>('3500');
+  const [pesoPromedioInicialKg, setPesoPromedioInicialKg] = useState<string>('0.05');
   const [raza, setRaza] = useState<string>('Ross 308 (Blanco pesado)');
   const [fechaInicio, setFechaInicio] = useState<string>(new Date().toISOString().split('T')[0]);
 
   // Formulario edición lote
   const [editNombre, setEditNombre] = useState<string>('');
-  const [editCantidadInicial, setEditCantidadInicial] = useState<number>(50);
-  const [editCantidadActual, setEditCantidadActual] = useState<number>(50);
-  const [editCostoPollitoUnitario, setEditCostoPollitoUnitario] = useState<number>(3500);
-  const [editPesoPromedioActualKg, setEditPesoPromedioActualKg] = useState<number>(2.7);
+  const [editCantidadInicial, setEditCantidadInicial] = useState<string>('50');
+  const [editCantidadActual, setEditCantidadActual] = useState<string>('50');
+  const [editCostoPollitoUnitario, setEditCostoPollitoUnitario] = useState<string>('3500');
+  const [editPesoPromedioActualKg, setEditPesoPromedioActualKg] = useState<string>('2.7');
   const [editRaza, setEditRaza] = useState<string>('Ross 308 (Blanco pesado)');
   const [editFechaInicio, setEditFechaInicio] = useState<string>('');
   const [editActivo, setEditActivo] = useState<boolean>(true);
@@ -52,14 +53,15 @@ export function LotesTab() {
       localStorage.setItem('pollos_seed_done', 'true');
     }
 
+    const cantIni = Number(cantidadInicial) || 0;
     await dbPollos.lotes.add({
       id: 'lote-' + Date.now(),
       nombre: nombre.trim(),
       fechaInicio: fechaInicio,
-      cantidadInicial: Number(cantidadInicial),
-      cantidadActual: Number(cantidadInicial),
+      cantidadInicial: cantIni,
+      cantidadActual: cantIni,
       raza: raza,
-      costoPollitoUnitario: Number(costoPollitoUnitario),
+      costoPollitoUnitario: Number(costoPollitoUnitario) || 0,
       pesoPromedioActualKg: Number(pesoPromedioInicialKg) || 0.05,
       activo: true,
       createdAt: new Date().toISOString(),
@@ -67,9 +69,9 @@ export function LotesTab() {
 
     setShowNuevoModal(false);
     setNombre('');
-    setCantidadInicial(50);
-    setCostoPollitoUnitario(3500);
-    setPesoPromedioInicialKg(0.05);
+    setCantidadInicial('50');
+    setCostoPollitoUnitario('3500');
+    setPesoPromedioInicialKg('0.05');
     emitPollosUpdated();
     await cargarLotes();
   };
@@ -77,10 +79,10 @@ export function LotesTab() {
   const handleOpenEdit = (lote: LotePollo) => {
     setEditingLote(lote);
     setEditNombre(lote.nombre);
-    setEditCantidadInicial(lote.cantidadInicial);
-    setEditCantidadActual(lote.cantidadActual);
-    setEditCostoPollitoUnitario(lote.costoPollitoUnitario);
-    setEditPesoPromedioActualKg(lote.pesoPromedioActualKg || 2.7);
+    setEditCantidadInicial(String(lote.cantidadInicial));
+    setEditCantidadActual(String(lote.cantidadActual));
+    setEditCostoPollitoUnitario(String(lote.costoPollitoUnitario));
+    setEditPesoPromedioActualKg(String(lote.pesoPromedioActualKg || 2.7));
     setEditRaza(lote.raza);
     setEditFechaInicio(lote.fechaInicio);
     setEditActivo(Boolean(lote.activo));
@@ -94,10 +96,10 @@ export function LotesTab() {
     await dbPollos.lotes.update(editingLote.id, {
       nombre: editNombre.trim(),
       fechaInicio: editFechaInicio,
-      cantidadInicial: Number(editCantidadInicial),
-      cantidadActual: Number(editCantidadActual),
-      costoPollitoUnitario: Number(editCostoPollitoUnitario),
-      pesoPromedioActualKg: Number(editPesoPromedioActualKg),
+      cantidadInicial: Number(editCantidadInicial) || 0,
+      cantidadActual: Number(editCantidadActual) || 0,
+      costoPollitoUnitario: Number(editCostoPollitoUnitario) || 0,
+      pesoPromedioActualKg: Number(editPesoPromedioActualKg) || 0.05,
       raza: editRaza,
       activo: editActivo,
       notas: editNotas.trim(),
@@ -120,6 +122,21 @@ export function LotesTab() {
 
     if (typeof window !== 'undefined') {
       localStorage.setItem('pollos_seed_done', 'true');
+    }
+
+    try {
+      const supabase = getSupabaseClient();
+      if (supabase && navigator.onLine) {
+        if (borrarRegistrosAsociados) {
+          await supabase.from('pollos_alimento').delete().eq('lote_id', deletingLote.id);
+          await supabase.from('pollos_mortalidad').delete().eq('lote_id', deletingLote.id);
+          await supabase.from('pollos_ventas').delete().eq('lote_id', deletingLote.id);
+          await supabase.from('pollos_gastos').delete().eq('lote_id', deletingLote.id);
+        }
+        await supabase.from('pollos_lotes').delete().eq('id', deletingLote.id);
+      }
+    } catch (e) {
+      console.warn('Error eliminando lote de Supabase:', e);
     }
 
     if (borrarRegistrosAsociados) {
@@ -319,7 +336,9 @@ export function LotesTab() {
                     type="number"
                     min="1"
                     value={cantidadInicial}
-                    onChange={(e) => setCantidadInicial(Number(e.target.value))}
+                    onFocus={(e) => e.target.select()}
+                    onChange={(e) => setCantidadInicial(cleanNumberInput(e.target.value))}
+                    placeholder="50"
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 font-bold text-slate-800 text-xs"
                   />
                 </div>
@@ -330,7 +349,9 @@ export function LotesTab() {
                     step="100"
                     min="0"
                     value={costoPollitoUnitario}
-                    onChange={(e) => setCostoPollitoUnitario(Number(e.target.value))}
+                    onFocus={(e) => e.target.select()}
+                    onChange={(e) => setCostoPollitoUnitario(cleanNumberInput(e.target.value))}
+                    placeholder="3500"
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 font-bold text-slate-800 text-xs"
                   />
                 </div>
@@ -344,7 +365,9 @@ export function LotesTab() {
                     step="0.05"
                     min="0.01"
                     value={pesoPromedioInicialKg}
-                    onChange={(e) => setPesoPromedioInicialKg(Number(e.target.value))}
+                    onFocus={(e) => e.target.select()}
+                    onChange={(e) => setPesoPromedioInicialKg(cleanNumberInput(e.target.value))}
+                    placeholder="0.05"
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 font-bold text-slate-800 text-xs"
                   />
                   <span className="text-[10px] text-slate-400">~0.05 kg pollito BB recién llegado</span>
@@ -434,7 +457,9 @@ export function LotesTab() {
                     type="number"
                     min="1"
                     value={editCantidadInicial}
-                    onChange={(e) => setEditCantidadInicial(Number(e.target.value))}
+                    onFocus={(e) => e.target.select()}
+                    onChange={(e) => setEditCantidadInicial(cleanNumberInput(e.target.value))}
+                    placeholder="0"
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 font-bold text-slate-800 text-xs"
                   />
                 </div>
@@ -444,7 +469,9 @@ export function LotesTab() {
                     type="number"
                     min="0"
                     value={editCantidadActual}
-                    onChange={(e) => setEditCantidadActual(Number(e.target.value))}
+                    onFocus={(e) => e.target.select()}
+                    onChange={(e) => setEditCantidadActual(cleanNumberInput(e.target.value))}
+                    placeholder="0"
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 font-bold text-slate-800 text-xs"
                   />
                 </div>
@@ -458,7 +485,9 @@ export function LotesTab() {
                     step="100"
                     min="0"
                     value={editCostoPollitoUnitario}
-                    onChange={(e) => setEditCostoPollitoUnitario(Number(e.target.value))}
+                    onFocus={(e) => e.target.select()}
+                    onChange={(e) => setEditCostoPollitoUnitario(cleanNumberInput(e.target.value))}
+                    placeholder="0"
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 font-bold text-slate-800 text-xs"
                   />
                 </div>
@@ -469,7 +498,9 @@ export function LotesTab() {
                     step="0.05"
                     min="0.01"
                     value={editPesoPromedioActualKg}
-                    onChange={(e) => setEditPesoPromedioActualKg(Number(e.target.value))}
+                    onFocus={(e) => e.target.select()}
+                    onChange={(e) => setEditPesoPromedioActualKg(cleanNumberInput(e.target.value))}
+                    placeholder="0.0"
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 font-bold text-slate-800 text-xs"
                   />
                 </div>

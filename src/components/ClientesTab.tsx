@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { dbPollos, emitPollosUpdated, type ClienteLocal } from '../lib/db';
 import { Users, UserPlus, Phone, MapPin, HandCoins, AlertCircle, X } from 'lucide-react';
-import { formatCOP } from '../lib/utils';
+import { formatCOP, cleanNumberInput } from '../lib/utils';
 
 export function ClientesTab() {
   const [clientes, setClientes] = useState<ClienteLocal[]>([]);
@@ -17,7 +17,7 @@ export function ClientesTab() {
   const [direccion, setDireccion] = useState<string>('');
 
   // Formulario abono
-  const [montoAbono, setMontoAbono] = useState<number>(20000);
+  const [montoAbono, setMontoAbono] = useState<string>('20000');
   const [metodoAbono, setMetodoAbono] = useState<'efectivo' | 'transferencia'>('efectivo');
 
   const cargarClientes = async () => {
@@ -53,18 +53,19 @@ export function ClientesTab() {
   };
 
   const handleRegistrarAbono = async () => {
-    if (!selectedCliente || montoAbono <= 0) return;
+    const montoNum = Number(montoAbono) || 0;
+    if (!selectedCliente || montoNum <= 0) return;
 
     await dbPollos.abonos.add({
       id: 'abo-' + Date.now(),
       clienteId: selectedCliente.id,
       fecha: new Date().toISOString().split('T')[0],
-      montoCop: Number(montoAbono),
+      montoCop: montoNum,
       metodoPago: metodoAbono,
       createdAt: new Date().toISOString(),
     });
 
-    const nuevoSaldo = Math.max(0, (selectedCliente.saldoPendiente || 0) - Number(montoAbono));
+    const nuevoSaldo = Math.max(0, (selectedCliente.saldoPendiente || 0) - montoNum);
     await dbPollos.clientes.update(selectedCliente.id, { saldoPendiente: nuevoSaldo });
 
     setShowAbonoModal(false);
@@ -141,7 +142,7 @@ export function ClientesTab() {
                 <button
                   onClick={() => {
                     setSelectedCliente(c);
-                    setMontoAbono(c.saldoPendiente);
+                    setMontoAbono(String(c.saldoPendiente || ''));
                     setShowAbonoModal(true);
                   }}
                   className="mt-1 text-[11px] font-bold text-orange-600 bg-orange-50 px-2 py-0.5 rounded-lg border border-orange-200 hover:bg-orange-100 active:scale-95 transition-all"
@@ -261,7 +262,9 @@ export function ClientesTab() {
                   step="5000"
                   max={selectedCliente.saldoPendiente}
                   value={montoAbono}
-                  onChange={(e) => setMontoAbono(Number(e.target.value))}
+                  onFocus={(e) => e.target.select()}
+                  onChange={(e) => setMontoAbono(cleanNumberInput(e.target.value))}
+                  placeholder="0"
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800"
                 />
               </div>

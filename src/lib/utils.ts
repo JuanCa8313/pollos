@@ -33,3 +33,13 @@ export function calcularCostoPorKg(costoTotalCop: number, kgTotales: number): nu
   if (!kgTotales || kgTotales <= 0) return 0;
   return Math.round(costoTotalCop / kgTotales);
 }
+
+/**
+ * Limpia entradas numéricas en formularios para evitar ceros a la izquierda molestos
+ * (ej. "05" -> "5", "00" -> "0", "013500" -> "13500"), pero preservando decimales válidos como "0.5" o "0.05".
+ */
+export function cleanNumberInput(val: string): string {
+  if (!val) return '';
+  return val.replace(/^(-?)0+(?=\d)/, '$1');
+}
+

@@ -2,8 +2,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { dbPollos, emitPollosUpdated, type LotePollo, type ClienteLocal } from '../lib/db';
+import { getSupabaseClient } from '../lib/supabase';
 import { ShoppingBag, Wheat, Bug, Skull, Receipt, HandCoins, Check, X, MessageCircle, Trash2, Sparkles, Calculator } from 'lucide-react';
-import { formatCOP } from '../lib/utils';
+import { formatCOP, cleanNumberInput } from '../lib/utils';
 import type { VentaPollo, RegistroAlimentoPollo, GastoPollo } from '../lib/db';
 import {
   calcularPreciosSugeridosPollos,
@@ -27,34 +28,34 @@ export function BotoneraTab() {
   // Venta
   const [modalidadVenta, setModalidadVenta] = useState<'en_pie' | 'en_canal'>('en_canal');
   const [unidadPeso, setUnidadPeso] = useState<'kg' | 'lb'>('kg');
-  const [cantidadAvesVenta, setCantidadAvesVenta] = useState<number>(1);
-  const [pesoEntrada, setPesoEntrada] = useState<number>(2.7);
-  const [precioPorKg, setPrecioPorKg] = useState<number>(13500); // Promedio pueblo canal COP/kg
+  const [cantidadAvesVenta, setCantidadAvesVenta] = useState<string>('1');
+  const [pesoEntrada, setPesoEntrada] = useState<string>('2.7');
+  const [precioPorKg, setPrecioPorKg] = useState<string>('13500'); // Promedio pueblo canal COP/kg
   const [metodoPagoVenta, setMetodoPagoVenta] = useState<'efectivo' | 'transferencia' | 'fiado'>('efectivo');
   const [clienteIdVenta, setClienteIdVenta] = useState<string>('');
   const [nuevoClienteNombre, setNuevoClienteNombre] = useState<string>('');
 
   // Alimento
   const [tipoAlimento, setTipoAlimento] = useState<'iniciacion' | 'engorde' | 'finalizador'>('engorde');
-  const [cantidadAlimentoKg, setCantidadAlimentoKg] = useState<number>(40);
-  const [costoAlimentoCop, setCostoAlimentoCop] = useState<number>(115000); // Bulto aprox 40kg
+  const [cantidadAlimentoKg, setCantidadAlimentoKg] = useState<string>('40');
+  const [costoAlimentoCop, setCostoAlimentoCop] = useState<string>('115000'); // Bulto aprox 40kg
 
   // BSF
-  const [cantidadBsfKg, setCantidadBsfKg] = useState<number>(2);
+  const [cantidadBsfKg, setCantidadBsfKg] = useState<string>('2');
 
   // Mortalidad
-  const [cantidadMortalidad, setCantidadMortalidad] = useState<number>(1);
+  const [cantidadMortalidad, setCantidadMortalidad] = useState<string>('1');
   const [causaMortalidad, setCausaMortalidad] = useState<'frio' | 'ascitis_infarto' | 'accidente' | 'enfermedad' | 'otra'>('ascitis_infarto');
 
   // Gasto
   const [categoriaGasto, setCategoriaGasto] = useState<'gas_calefaccion' | 'viruta_cama' | 'medicamentos_vitaminas' | 'fletes' | 'mano_obra' | 'otro'>('viruta_cama');
   const [descripcionGasto, setDescripcionGasto] = useState<string>('');
-  const [montoGastoCop, setMontoGastoCop] = useState<number>(25000);
+  const [montoGastoCop, setMontoGastoCop] = useState<string>('25000');
   const [metodoPagoGasto, setMetodoPagoGasto] = useState<'efectivo' | 'transferencia'>('efectivo');
 
   // Abono
   const [clienteIdAbono, setClienteIdAbono] = useState<string>('');
-  const [montoAbonoCop, setMontoAbonoCop] = useState<number>(50000);
+  const [montoAbonoCop, setMontoAbonoCop] = useState<string>('50000');
   const [metodoPagoAbono, setMetodoPagoAbono] = useState<'efectivo' | 'transferencia'>('efectivo');
 
   // Estados para sugerencia de precios y márgenes
@@ -100,6 +101,9 @@ export function BotoneraTab() {
 
   useEffect(() => {
     cargarDatos();
+    const listener = () => cargarDatos();
+    window.addEventListener('granja-pollos-db-updated', listener);
+    return () => window.removeEventListener('granja-pollos-db-updated', listener);
   }, []);
 
   const notificar = (msg: string) => {
@@ -110,8 +114,10 @@ export function BotoneraTab() {
 
   // Convertir a Kilos reales para base de datos y zootecnia
   // Si unidad es 'lb', 1 lb tradicional = 0.5 kg
-  const pesoKgCalculado = unidadPeso === 'lb' ? Number((pesoEntrada * 0.5).toFixed(2)) : Number(pesoEntrada);
-  const totalCalculadoVenta = Math.round(pesoKgCalculado * precioPorKg);
+  const pesoEntradaNum = Number(pesoEntrada) || 0;
+  const precioPorKgNum = Number(precioPorKg) || 0;
+  const pesoKgCalculado = unidadPeso === 'lb' ? Number((pesoEntradaNum * 0.5).toFixed(2)) : pesoEntradaNum;
+  const totalCalculadoVenta = Math.round(pesoKgCalculado * precioPorKgNum);
 
   // 1. Guardar Venta
   const handleGuardarVenta = async () => {
@@ -177,6 +183,15 @@ export function BotoneraTab() {
 
     await dbPollos.ventas.delete(venta.id);
 
+    try {
+      const supabase = getSupabaseClient();
+      if (supabase && navigator.onLine) {
+        await supabase.from('pollos_ventas').delete().eq('id', venta.id);
+      }
+    } catch (e) {
+      console.warn('Error eliminando venta de Supabase:', e);
+    }
+
     // Devolver aves al lote
     const lote = await dbPollos.lotes.get(venta.loteId);
     if (lote) {
@@ -229,8 +244,9 @@ export function BotoneraTab() {
       costoTotalCop: Number(costoAlimentoCop),
       createdAt: new Date().toISOString(),
     });
+    await cargarDatos();
     setModalType(null);
-    notificar(`Alimento registrado: ${cantidadAlimentoKg} kg (${formatCOP(costoAlimentoCop)})`);
+    notificar(`Alimento registrado: ${cantidadAlimentoKg} kg (${formatCOP(Number(costoAlimentoCop) || 0)})`);
   };
 
   // 3. Guardar Larva BSF (Costo $0)
@@ -246,6 +262,7 @@ export function BotoneraTab() {
       notas: 'Larva viva BSF cosechada en finca (Costo $0)',
       createdAt: new Date().toISOString(),
     });
+    await cargarDatos();
     setModalType(null);
     notificar(`¡Proteína Viva BSF! Suministrados ${cantidadBsfKg} kg de larva a costo $0`);
   };
@@ -285,8 +302,9 @@ export function BotoneraTab() {
       metodoPago: metodoPagoGasto,
       createdAt: new Date().toISOString(),
     });
+    await cargarDatos();
     setModalType(null);
-    notificar(`Gasto registrado: ${formatCOP(montoGastoCop)}`);
+    notificar(`Gasto registrado: ${formatCOP(Number(montoGastoCop) || 0)}`);
   };
 
   // 6. Guardar Abono
@@ -309,7 +327,7 @@ export function BotoneraTab() {
 
     await cargarDatos();
     setModalType(null);
-    notificar(`Abono registrado: ${formatCOP(montoAbonoCop)} de ${cliente.nombre}`);
+    notificar(`Abono registrado: ${formatCOP(Number(montoAbonoCop) || 0)} de ${cliente.nombre}`);
   };
 
   const loteActivo = lotes.find((l) => l.id === selectedLoteId);
@@ -330,8 +348,8 @@ export function BotoneraTab() {
   const costoUnitarioActivo = modalidadVenta === 'en_canal'
     ? analisisVenta.canal.costoUnitarioKg
     : analisisVenta.enPie.costoUnitarioKg;
-  const gananciaCalculada = precioPorKg - costoUnitarioActivo;
-  const margenCalculado = precioPorKg > 0 ? Number(((gananciaCalculada / precioPorKg) * 100).toFixed(1)) : 0;
+  const gananciaCalculada = precioPorKgNum - costoUnitarioActivo;
+  const margenCalculado = precioPorKgNum > 0 ? Number(((gananciaCalculada / precioPorKgNum) * 100).toFixed(1)) : 0;
 
   return (
     <div className="pb-24 pt-4 px-4 max-w-lg mx-auto">
@@ -551,7 +569,7 @@ export function BotoneraTab() {
                     type="button"
                     onClick={() => {
                       setModalidadVenta('en_canal');
-                      setPrecioPorKg(analisisVenta.canal.precioSugeridoKg || 13500);
+                      setPrecioPorKg(String(analisisVenta.canal.precioSugeridoKg || 13500));
                     }}
                     className={`py-2 px-3 rounded-xl font-bold text-xs transition-all ${
                       modalidadVenta === 'en_canal'
@@ -565,7 +583,7 @@ export function BotoneraTab() {
                     type="button"
                     onClick={() => {
                       setModalidadVenta('en_pie');
-                      setPrecioPorKg(analisisVenta.enPie.precioSugeridoKg || 9500);
+                      setPrecioPorKg(String(analisisVenta.enPie.precioSugeridoKg || 9500));
                     }}
                     className={`py-2 px-3 rounded-xl font-bold text-xs transition-all ${
                       modalidadVenta === 'en_pie'
@@ -586,12 +604,15 @@ export function BotoneraTab() {
                     type="number"
                     min="1"
                     value={cantidadAvesVenta}
+                    onFocus={(e) => e.target.select()}
                     onChange={(e) => {
-                      const cant = Number(e.target.value);
-                      setCantidadAvesVenta(cant);
+                      const val = cleanNumberInput(e.target.value);
+                      setCantidadAvesVenta(val);
+                      const cant = Number(val) || 0;
                       const baseKg = Number((cant * 2.7).toFixed(1));
-                      setPesoEntrada(unidadPeso === 'lb' ? Number((baseKg * 2).toFixed(1)) : baseKg);
+                      setPesoEntrada(unidadPeso === 'lb' ? String(Number((baseKg * 2).toFixed(1))) : String(baseKg));
                     }}
+                    placeholder="1"
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 font-bold text-slate-800"
                   />
                 </div>
@@ -602,7 +623,8 @@ export function BotoneraTab() {
                       type="button"
                       onClick={() => {
                         if (unidadPeso === 'lb') {
-                          setPesoEntrada(Number((pesoEntrada * 0.5).toFixed(1)));
+                          const p = Number(pesoEntrada) || 0;
+                          setPesoEntrada(String(Number((p * 0.5).toFixed(1))));
                         }
                         setUnidadPeso('kg');
                       }}
@@ -616,7 +638,8 @@ export function BotoneraTab() {
                       type="button"
                       onClick={() => {
                         if (unidadPeso === 'kg') {
-                          setPesoEntrada(Number((pesoEntrada * 2).toFixed(1)));
+                          const p = Number(pesoEntrada) || 0;
+                          setPesoEntrada(String(Number((p * 2).toFixed(1))));
                         }
                         setUnidadPeso('lb');
                       }}
@@ -641,12 +664,14 @@ export function BotoneraTab() {
                     step="0.1"
                     min="0.5"
                     value={pesoEntrada}
-                    onChange={(e) => setPesoEntrada(Number(e.target.value))}
+                    onFocus={(e) => e.target.select()}
+                    onChange={(e) => setPesoEntrada(cleanNumberInput(e.target.value))}
+                    placeholder="0.0"
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 font-bold text-slate-800"
                   />
                   {unidadPeso === 'lb' && (
                     <span className="absolute right-3 top-2 text-xs font-semibold text-slate-400">
-                      = {(pesoEntrada * 0.5).toFixed(2)} kg
+                      = {((Number(pesoEntrada) || 0) * 0.5).toFixed(2)} kg
                     </span>
                   )}
                 </div>
@@ -697,9 +722,9 @@ export function BotoneraTab() {
                       <button
                         key={item.pct}
                         type="button"
-                        onClick={() => setPrecioPorKg(pSugerido)}
+                        onClick={() => setPrecioPorKg(String(pSugerido))}
                         className={`py-1.5 px-1 rounded-xl border text-center transition-all ${
-                          precioPorKg === pSugerido
+                          precioPorKgNum === pSugerido
                             ? 'bg-amber-600 text-white border-amber-700 shadow-sm font-black'
                             : 'bg-white text-slate-700 border-amber-200/90 hover:bg-amber-100/60'
                         }`}
@@ -715,13 +740,15 @@ export function BotoneraTab() {
               {/* Precio por Kilo */}
               <div>
                 <label className="text-xs font-bold text-slate-600 block mb-1">
-                  Precio por Kilo (COP) {unidadPeso === 'lb' ? `(Aprox ${formatCOP(Math.round(precioPorKg * 0.5))}/lb)` : ''}
+                  Precio por Kilo (COP) {unidadPeso === 'lb' ? `(Aprox ${formatCOP(Math.round(precioPorKgNum * 0.5))}/lb)` : ''}
                 </label>
                 <input
                   type="number"
                   step="500"
                   value={precioPorKg}
-                  onChange={(e) => setPrecioPorKg(Number(e.target.value))}
+                  onFocus={(e) => e.target.select()}
+                  onChange={(e) => setPrecioPorKg(cleanNumberInput(e.target.value))}
+                  placeholder="0"
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 font-bold text-slate-800"
                 />
 
@@ -732,15 +759,15 @@ export function BotoneraTab() {
                   </span>
                   <span
                     className={`font-black px-2 py-0.5 rounded-full text-[10px] ${
-                      precioPorKg < costoUnitarioActivo
+                      precioPorKgNum < costoUnitarioActivo
                         ? 'bg-rose-100 text-rose-700 border border-rose-200'
                         : margenCalculado >= 20
                         ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
                         : 'bg-amber-100 text-amber-800 border border-amber-200'
                     }`}
                   >
-                    {precioPorKg < costoUnitarioActivo
-                      ? `🚨 Bajo costo (-${formatCOP(costoUnitarioActivo - precioPorKg)}/kg)`
+                    {precioPorKgNum < costoUnitarioActivo
+                      ? `🚨 Bajo costo (-${formatCOP(costoUnitarioActivo - precioPorKgNum)}/kg)`
                       : `Margen: ${margenCalculado}% (+${formatCOP(gananciaCalculada)}/kg)`}
                   </span>
                 </div>
@@ -855,7 +882,9 @@ export function BotoneraTab() {
                     type="number"
                     min="1"
                     value={cantidadAlimentoKg}
-                    onChange={(e) => setCantidadAlimentoKg(Number(e.target.value))}
+                    onFocus={(e) => e.target.select()}
+                    onChange={(e) => setCantidadAlimentoKg(cleanNumberInput(e.target.value))}
+                    placeholder="0"
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 font-bold text-slate-800"
                   />
                 </div>
@@ -865,7 +894,9 @@ export function BotoneraTab() {
                     type="number"
                     step="5000"
                     value={costoAlimentoCop}
-                    onChange={(e) => setCostoAlimentoCop(Number(e.target.value))}
+                    onFocus={(e) => e.target.select()}
+                    onChange={(e) => setCostoAlimentoCop(cleanNumberInput(e.target.value))}
+                    placeholder="0"
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 font-bold text-slate-800"
                   />
                 </div>
@@ -919,7 +950,9 @@ export function BotoneraTab() {
                   step="0.5"
                   min="0.1"
                   value={cantidadBsfKg}
-                  onChange={(e) => setCantidadBsfKg(Number(e.target.value))}
+                  onFocus={(e) => e.target.select()}
+                  onChange={(e) => setCantidadBsfKg(cleanNumberInput(e.target.value))}
+                  placeholder="0.0"
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 font-bold text-slate-800"
                 />
               </div>
@@ -967,7 +1000,9 @@ export function BotoneraTab() {
                   type="number"
                   min="1"
                   value={cantidadMortalidad}
-                  onChange={(e) => setCantidadMortalidad(Number(e.target.value))}
+                  onFocus={(e) => e.target.select()}
+                  onChange={(e) => setCantidadMortalidad(cleanNumberInput(e.target.value))}
+                  placeholder="1"
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 font-bold text-slate-800"
                 />
               </div>
@@ -1046,7 +1081,9 @@ export function BotoneraTab() {
                   type="number"
                   step="5000"
                   value={montoGastoCop}
-                  onChange={(e) => setMontoGastoCop(Number(e.target.value))}
+                  onFocus={(e) => e.target.select()}
+                  onChange={(e) => setMontoGastoCop(cleanNumberInput(e.target.value))}
+                  placeholder="0"
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 font-bold text-slate-800"
                 />
               </div>
@@ -1142,7 +1179,9 @@ export function BotoneraTab() {
                   type="number"
                   step="5000"
                   value={montoAbonoCop}
-                  onChange={(e) => setMontoAbonoCop(Number(e.target.value))}
+                  onFocus={(e) => e.target.select()}
+                  onChange={(e) => setMontoAbonoCop(cleanNumberInput(e.target.value))}
+                  placeholder="0"
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 font-bold text-slate-800"
                 />
               </div>

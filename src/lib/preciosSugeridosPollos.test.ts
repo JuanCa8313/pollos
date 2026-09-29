@@ -5,9 +5,23 @@ import {
   OPCIONES_MARGEN_POLLOS,
   BENCHMARK_TEORICO_POLLO,
 } from './preciosSugeridosPollos.ts';
+import { cleanNumberInput } from './utils.ts';
 import type { LotePollo, VentaPollo, RegistroAlimentoPollo, GastoPollo } from './db';
 
-console.log('🧪 Iniciando pruebas de preciosSugeridosPollos...');
+console.log('🧪 Iniciando pruebas de preciosSugeridosPollos y cleanNumberInput...');
+
+// 0. Pruebas de cleanNumberInput (eliminación de ceros a la izquierda molestos)
+assert.strictEqual(cleanNumberInput('05'), '5', '05 debe convertirse en 5');
+assert.strictEqual(cleanNumberInput('0050'), '50', '0050 debe convertirse en 50');
+assert.strictEqual(cleanNumberInput('013500'), '13500', '013500 debe convertirse en 13500');
+assert.strictEqual(cleanNumberInput('0'), '0', '0 solo debe mantenerse');
+assert.strictEqual(cleanNumberInput('00'), '0', '00 debe convertirse en 0');
+assert.strictEqual(cleanNumberInput('0.5'), '0.5', '0.5 decimal debe preservarse');
+assert.strictEqual(cleanNumberInput('0.05'), '0.05', '0.05 decimal debe preservarse');
+assert.strictEqual(cleanNumberInput(''), '', 'cadena vacía debe ser vacía');
+assert.strictEqual(cleanNumberInput('100'), '100', '100 debe mantenerse sin cambios');
+assert.strictEqual(cleanNumberInput('-05'), '-5', '-05 debe convertirse en -5');
+
 
 // 1. Redondeo comercial
 assert.strictEqual(redondearPrecioComercial(13420), 13400);
